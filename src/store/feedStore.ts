@@ -12,7 +12,7 @@ import {
   saveLastSync,
 } from '../services/db';
 
-export type TabId = 'brief' | Category | 'settings';
+export type TabId = 'brief' | Category | 'discover' | 'settings';
 
 interface FeedState {
   // Data
@@ -33,6 +33,8 @@ interface FeedState {
   setActiveTab: (tab: TabId) => void;
   initFromDB: () => Promise<void>;
   importOPML: (file: File) => Promise<void>;
+  addFeed: (feed: FeedSource) => Promise<void>;
+  removeFeed: (feedId: string) => Promise<void>;
   toggleFeed: (feedId: string) => Promise<void>;
   refresh: () => Promise<void>;
 }
@@ -91,6 +93,21 @@ export const useFeedStore = create<FeedState>((set, get) => ({
       set({ loading: false, error: 'Failed to import OPML file.' });
       console.error('[store] importOPML error:', err);
     }
+  },
+
+  addFeed: async (feed: FeedSource) => {
+    const existing = get().feeds;
+    if (existing.some((f) => f.id === feed.id)) return; // already present
+    const feeds = [...existing, feed];
+    await saveFeeds(feeds);
+    set({ feeds });
+    await get().refresh();
+  },
+
+  removeFeed: async (feedId: string) => {
+    const feeds = get().feeds.filter((f) => f.id !== feedId);
+    await saveFeeds(feeds);
+    set({ feeds });
   },
 
   toggleFeed: async (feedId: string) => {
