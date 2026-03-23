@@ -145,7 +145,13 @@ const PROXIES: Array<{ name: string; fetch: (url: string) => Promise<string> }> 
       };
       const httpCode = json.status?.http_code ?? 200;
       if (httpCode >= 400) throw new Error(`upstream HTTP ${httpCode}`);
-      return json.contents ?? '';
+      const contents = json.contents ?? '';
+      // allorigins sometimes returns a base64 data URI instead of plain text
+      if (contents.startsWith('data:') && contents.includes('base64,')) {
+        const b64 = contents.split('base64,', 2)[1];
+        return atob(b64);
+      }
+      return contents;
     },
   },
   {

@@ -64,6 +64,12 @@ const source: FeedSource = {
 const ALLORIGINS_OK = (xml: string) =>
   JSON.stringify({ contents: xml, status: { http_code: 200 } });
 
+const ALLORIGINS_BASE64 = (xml: string) =>
+  JSON.stringify({
+    contents: `data:application/rss+xml; charset=UTF-8;base64,${btoa(xml)}`,
+    status: { http_code: 200 },
+  });
+
 function mockFetchJson(xml: string) {
   return vi.fn().mockResolvedValue({
     ok: true,
@@ -95,6 +101,22 @@ describe('aggregateFeeds', () => {
     const result = await aggregateFeeds([source]);
     const article = result.find((a) => a.link === 'https://example.com/2');
     expect(article?.title).toContain('&');
+  });
+
+  it('handles base64-encoded data URI response from allorigins', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(JSON.parse(ALLORIGINS_BASE64(RSS_FIXTURE))),
+        text: () => Promise.resolve(RSS_FIXTURE),
+      }),
+    );
+    const { aggregateFeeds } = await import('./aggregator');
+    const result = await aggregateFeeds([source]);
+    expect(result.length).toBe(2);
+    expect(result[0].title).toBe('Article One');
   });
 
   it('handles feeds with UTF-8 BOM prefix', async () => {
