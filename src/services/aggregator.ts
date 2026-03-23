@@ -1,18 +1,19 @@
 import { XMLParser } from 'fast-xml-parser';
 import type { Article, FeedSource } from '../domain/types';
 
-const PROXY = 'https://api.allorigins.win/raw?url=';
-const TIMEOUT_MS = 5000;
+// Primary proxy and fallback
+const PROXIES = [
+  (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+];
+
+const TIMEOUT_MS = 10000;
 
 const xmlParser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: '@_',
   isArray: (tagName) => ['item', 'entry'].includes(tagName),
 });
-
-function proxyUrl(url: string): string {
-  return `${PROXY}${encodeURIComponent(url)}`;
-}
 
 function parseDate(raw: string | undefined): number {
   if (!raw) return Date.now();
@@ -46,17 +47,15 @@ function extractItems(doc: XmlNode): XmlNode[] {
 }
 
 function extractLink(item: XmlNode): string {
-  // Atom uses <link href="..."> as an object
   const link = item['link'];
   if (typeof link === 'string') return link.trim();
+  if (Array.isArray(link)) {
+    const alt = link.find((l: XmlNode) => !l['@_rel'] || l['@_rel'] === 'alternate');
+    if (alt) return String(alt['@_href'] ?? '').trim();
+  }
   if (typeof link === 'object' && link !== null) {
     const href = (link as XmlNode)['@_href'];
     if (typeof href === 'string') return href.trim();
-    // Array of link elements (Atom alternate)
-    if (Array.isArray(link)) {
-      const alt = link.find((l: XmlNode) => !l['@_rel'] || l['@_rel'] === 'alternate');
-      if (alt) return String(alt['@_href'] ?? '').trim();
-    }
   }
   return '';
 }
@@ -68,7 +67,6 @@ function normalizeItem(item: XmlNode, source: FeedSource): Article | null {
   if (!title || !link) return null;
 
   const guid = String(item['guid'] ?? item['id'] ?? link).trim();
-  const id = guid.toLowerCase();
 
   const pubDate =
     (item['pubDate'] as string | undefined) ??
@@ -77,7 +75,7 @@ function normalizeItem(item: XmlNode, source: FeedSource): Article | null {
     (item['dc:date'] as string | undefined);
 
   return {
-    id,
+    id: guid.toLowerCase(),
     title,
     link,
     source: source.name,
@@ -87,25 +85,47 @@ function normalizeItem(item: XmlNode, source: FeedSource): Article | null {
   };
 }
 
-async function fetchFeedWithRetry(url: string, attempt = 1): Promise<XmlNode[]> {
+async function tryFetch(url: string, proxyFn: (u: string) => string): Promise<XmlNode[]> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
   try {
-    const res = await fetch(proxyUrl(url), { signal: controller.signal });
+    const res = await fetch(proxyFn(url), { signal: controller.signal });
     clearTimeout(timer);
 
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-    const xml = await res.text();
-    const doc = xmlParser.parse(xml) as XmlNode;
-    return extractItems(doc);
+    const text = await res.text();
+    if (!text.trim().startsWith('<')) {
+      throw new Error(`Non-XML response (starts with: ${text.slice(0, 80)})`);
+    }
+
+    const doc = xmlParser.parse(text) as XmlNode;
+    const items = extractItems(doc);
+
+    if (items.length === 0) {
+      throw new Error('Parsed XML but found 0 items');
+    }
+
+    return items;
   } catch (err) {
     clearTimeout(timer);
-    if (attempt < 2) return fetchFeedWithRetry(url, attempt + 1);
-    console.warn(`[aggregator] failed to fetch ${url}:`, err);
-    return [];
+    throw err;
   }
+}
+
+async function fetchFeedWithRetry(url: string): Promise<XmlNode[]> {
+  // Try each proxy in order; first success wins
+  for (const proxyFn of PROXIES) {
+    try {
+      return await tryFetch(url, proxyFn);
+    } catch (err) {
+      console.warn(`[aggregator] proxy failed for ${url}:`, err);
+    }
+  }
+
+  console.error(`[aggregator] all proxies failed for ${url}`);
+  return [];
 }
 
 export async function aggregateFeeds(sources: FeedSource[]): Promise<Article[]> {

@@ -111,8 +111,16 @@ export const useFeedStore = create<FeedState>((set, get) => ({
       const ranked = rankArticles(raw, feeds);
       const now = Date.now();
 
-      await Promise.all([saveArticles(ranked), saveLastSync(now)]);
+      if (ranked.length === 0) {
+        set({
+          loading: false,
+          error:
+            'No articles loaded. All feeds may be unreachable — check the browser console for details.',
+        });
+        return;
+      }
 
+      await Promise.all([saveArticles(ranked), saveLastSync(now)]);
       set({ articles: ranked, lastSync: now, loading: false });
     } catch (err) {
       set({ loading: false, error: 'Failed to refresh feeds.' });
