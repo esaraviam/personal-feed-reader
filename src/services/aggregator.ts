@@ -1,46 +1,80 @@
-import Parser from 'rss-parser';
+import { XMLParser } from 'fast-xml-parser';
 import type { Article, FeedSource } from '../domain/types';
 
 const PROXY = 'https://api.allorigins.win/raw?url=';
 const TIMEOUT_MS = 5000;
 
-const parser = new Parser({
-  timeout: TIMEOUT_MS,
-  customFields: {
-    item: [
-      ['guid', 'guid'],
-      ['pubDate', 'pubDate'],
-      ['dc:date', 'dcDate'],
-    ],
-  },
+const xmlParser = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: '@_',
+  isArray: (tagName) => ['item', 'entry'].includes(tagName),
 });
-
-type RssItem = {
-  title?: string;
-  link?: string;
-  guid?: string;
-  pubDate?: string;
-  dcDate?: string;
-  isoDate?: string;
-};
 
 function proxyUrl(url: string): string {
   return `${PROXY}${encodeURIComponent(url)}`;
 }
 
-function parseDate(item: RssItem): number {
-  const raw = item.isoDate ?? item.pubDate ?? item.dcDate ?? '';
+function parseDate(raw: string | undefined): number {
+  if (!raw) return Date.now();
   const ts = Date.parse(raw);
   return isNaN(ts) ? Date.now() : ts;
 }
 
-function normalizeItem(item: RssItem, source: FeedSource): Article | null {
-  const link = item.link?.trim();
-  const title = item.title?.trim();
+type XmlNode = Record<string, unknown>;
 
-  if (!link || !title) return null;
+function extractItems(doc: XmlNode): XmlNode[] {
+  // RSS 2.0: rss > channel > item[]
+  const rss = doc['rss'] as XmlNode | undefined;
+  if (rss) {
+    const channel = rss['channel'] as XmlNode | undefined;
+    return (channel?.['item'] as XmlNode[] | undefined) ?? [];
+  }
 
-  const id = (item.guid?.trim() || link).toLowerCase();
+  // Atom: feed > entry[]
+  const feed = doc['feed'] as XmlNode | undefined;
+  if (feed) {
+    return (feed['entry'] as XmlNode[] | undefined) ?? [];
+  }
+
+  // RSS 1.0 / RDF: RDF > item[]
+  const rdf = doc['rdf:RDF'] as XmlNode | undefined;
+  if (rdf) {
+    return (rdf['item'] as XmlNode[] | undefined) ?? [];
+  }
+
+  return [];
+}
+
+function extractLink(item: XmlNode): string {
+  // Atom uses <link href="..."> as an object
+  const link = item['link'];
+  if (typeof link === 'string') return link.trim();
+  if (typeof link === 'object' && link !== null) {
+    const href = (link as XmlNode)['@_href'];
+    if (typeof href === 'string') return href.trim();
+    // Array of link elements (Atom alternate)
+    if (Array.isArray(link)) {
+      const alt = link.find((l: XmlNode) => !l['@_rel'] || l['@_rel'] === 'alternate');
+      if (alt) return String(alt['@_href'] ?? '').trim();
+    }
+  }
+  return '';
+}
+
+function normalizeItem(item: XmlNode, source: FeedSource): Article | null {
+  const title = String(item['title'] ?? '').trim();
+  const link = extractLink(item);
+
+  if (!title || !link) return null;
+
+  const guid = String(item['guid'] ?? item['id'] ?? link).trim();
+  const id = guid.toLowerCase();
+
+  const pubDate =
+    (item['pubDate'] as string | undefined) ??
+    (item['published'] as string | undefined) ??
+    (item['updated'] as string | undefined) ??
+    (item['dc:date'] as string | undefined);
 
   return {
     id,
@@ -48,25 +82,27 @@ function normalizeItem(item: RssItem, source: FeedSource): Article | null {
     link,
     source: source.name,
     category: source.category,
-    publishedAt: parseDate(item),
-    score: 0, // assigned by ranking engine
+    publishedAt: parseDate(pubDate),
+    score: 0,
   };
 }
 
-async function fetchFeedWithRetry(url: string, attempt = 1): Promise<RssItem[]> {
+async function fetchFeedWithRetry(url: string, attempt = 1): Promise<XmlNode[]> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
   try {
-    const feed = await parser.parseURL(proxyUrl(url));
+    const res = await fetch(proxyUrl(url), { signal: controller.signal });
     clearTimeout(timer);
-    return (feed.items ?? []) as RssItem[];
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const xml = await res.text();
+    const doc = xmlParser.parse(xml) as XmlNode;
+    return extractItems(doc);
   } catch (err) {
     clearTimeout(timer);
-    if (attempt < 2) {
-      return fetchFeedWithRetry(url, attempt + 1);
-    }
-    // Skip failing feed after one retry
+    if (attempt < 2) return fetchFeedWithRetry(url, attempt + 1);
     console.warn(`[aggregator] failed to fetch ${url}:`, err);
     return [];
   }
