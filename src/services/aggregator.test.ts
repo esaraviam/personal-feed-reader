@@ -61,27 +61,18 @@ const source: FeedSource = {
   priority: 1,
 };
 
-const ALLORIGINS_OK = (xml: string) =>
-  JSON.stringify({ contents: xml, status: { http_code: 200 } });
-
-const ALLORIGINS_BASE64 = (xml: string) =>
-  JSON.stringify({
-    contents: `data:application/rss+xml; charset=UTF-8;base64,${btoa(xml)}`,
-    status: { http_code: 200 },
-  });
-
-function mockFetchJson(xml: string) {
+// The CF worker returns plain XML text — mock accordingly
+function mockWorker(xml: string) {
   return vi.fn().mockResolvedValue({
     ok: true,
     status: 200,
-    json: () => Promise.resolve(JSON.parse(ALLORIGINS_OK(xml))),
     text: () => Promise.resolve(xml),
   });
 }
 
 describe('aggregateFeeds', () => {
   beforeEach(() => {
-    vi.stubGlobal('fetch', mockFetchJson(RSS_FIXTURE));
+    vi.stubGlobal('fetch', mockWorker(RSS_FIXTURE));
   });
 
   afterEach(() => {
@@ -103,24 +94,8 @@ describe('aggregateFeeds', () => {
     expect(article?.title).toContain('&');
   });
 
-  it('handles base64-encoded data URI response from allorigins', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: () => Promise.resolve(JSON.parse(ALLORIGINS_BASE64(RSS_FIXTURE))),
-        text: () => Promise.resolve(RSS_FIXTURE),
-      }),
-    );
-    const { aggregateFeeds } = await import('./aggregator');
-    const result = await aggregateFeeds([source]);
-    expect(result.length).toBe(2);
-    expect(result[0].title).toBe('Article One');
-  });
-
   it('handles feeds with UTF-8 BOM prefix', async () => {
-    vi.stubGlobal('fetch', mockFetchJson(BOM_RSS));
+    vi.stubGlobal('fetch', mockWorker(BOM_RSS));
     const { aggregateFeeds } = await import('./aggregator');
     const result = await aggregateFeeds([source]);
     expect(result.length).toBe(1);
@@ -128,7 +103,7 @@ describe('aggregateFeeds', () => {
   });
 
   it('parses Atom feeds', async () => {
-    vi.stubGlobal('fetch', mockFetchJson(ATOM_FIXTURE));
+    vi.stubGlobal('fetch', mockWorker(ATOM_FIXTURE));
     const { aggregateFeeds } = await import('./aggregator');
     const result = await aggregateFeeds([source]);
     expect(result.length).toBe(1);
@@ -136,28 +111,18 @@ describe('aggregateFeeds', () => {
   });
 
   it('parses RSS 1.0 / RDF feeds', async () => {
-    vi.stubGlobal('fetch', mockFetchJson(RDF_FIXTURE));
+    vi.stubGlobal('fetch', mockWorker(RDF_FIXTURE));
     const { aggregateFeeds } = await import('./aggregator');
     const result = await aggregateFeeds([source]);
     expect(result.length).toBe(1);
     expect(result[0].title).toBe('RDF Article');
   });
 
-  it('falls back to second proxy on primary failure', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn()
-        .mockRejectedValueOnce(new Error('allorigins/get fail'))
-        .mockResolvedValue({
-          ok: true,
-          status: 200,
-          json: () => Promise.resolve(JSON.parse(ALLORIGINS_OK(RSS_FIXTURE))),
-          text: () => Promise.resolve(RSS_FIXTURE),
-        }),
-    );
+  it('returns empty when worker fails for a feed', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));
     const { aggregateFeeds } = await import('./aggregator');
     const result = await aggregateFeeds([source]);
-    expect(result.length).toBeGreaterThan(0);
+    expect(result).toHaveLength(0);
   });
 
   it('skips inactive feeds', async () => {
@@ -176,25 +141,16 @@ describe('aggregateFeeds', () => {
     expect(ids.length).toBe(new Set(ids).size);
   });
 
-  it('returns empty when all proxies fail for a feed', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));
-    const { aggregateFeeds } = await import('./aggregator');
-    const result = await aggregateFeeds([source]);
-    expect(result).toHaveLength(0);
-  });
-
   it('continues processing other feeds when one fails', async () => {
     let call = 0;
     vi.stubGlobal(
       'fetch',
       vi.fn().mockImplementation(() => {
         call++;
-        // First 3 calls (3 proxies for failing feed) all fail
-        if (call <= 3) return Promise.reject(new Error('fail'));
+        if (call === 1) return Promise.reject(new Error('fail'));
         return Promise.resolve({
           ok: true,
           status: 200,
-          json: () => Promise.resolve(JSON.parse(ALLORIGINS_OK(RSS_FIXTURE))),
           text: () => Promise.resolve(RSS_FIXTURE),
         });
       }),

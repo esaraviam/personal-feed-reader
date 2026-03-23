@@ -130,73 +130,19 @@ function fetchWithTimeout(url: string, headers?: Record<string, string>): Promis
   return fetch(url, { signal: controller.signal, headers }).finally(() => clearTimeout(timer));
 }
 
-// Proxy strategies — tried in order until one succeeds
-const WORKER_URL = import.meta.env.VITE_PROXY_URL as string | undefined;
+const WORKER_URL = import.meta.env.VITE_PROXY_URL as string;
 const WORKER_KEY = import.meta.env.VITE_PROXY_KEY as string | undefined;
 
-const workerProxy = WORKER_URL
-  ? [
-      {
-        name: 'cf-worker',
-        fetch: async (url: string) => {
-          const endpoint = `${WORKER_URL}?url=${encodeURIComponent(url)}`;
-          const headers: Record<string, string> = {};
-          if (WORKER_KEY) headers['X-Proxy-Key'] = WORKER_KEY;
-          const res = await fetchWithTimeout(endpoint, headers);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const text = await res.text();
-          if (text.trim().startsWith('<!') || text.trim().startsWith('<html')) {
-            throw new Error('Received HTML instead of XML');
-          }
-          return text;
-        },
-      },
-    ]
-  : [];
-
 const PROXIES: Array<{ name: string; fetch: (url: string) => Promise<string> }> = [
-  ...workerProxy,
   {
-    name: 'allorigins/get',
-    fetch: async (url) => {
-      const res = await fetchWithTimeout(
-        `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as {
-        contents?: string;
-        status?: { http_code?: number };
-      };
-      const httpCode = json.status?.http_code ?? 200;
-      if (httpCode >= 400) throw new Error(`upstream HTTP ${httpCode}`);
-      const contents = json.contents ?? '';
-      // allorigins sometimes returns a base64 data URI instead of plain text
-      if (contents.startsWith('data:') && contents.includes('base64,')) {
-        const b64 = contents.split('base64,', 2)[1];
-        return atob(b64);
-      }
-      return contents;
-    },
-  },
-  {
-    name: 'allorigins/raw',
-    fetch: async (url) => {
-      const res = await fetchWithTimeout(
-        `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.text();
-    },
-  },
-  {
-    name: 'corsproxy.io',
-    fetch: async (url) => {
-      const res = await fetchWithTimeout(
-        `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
-      );
+    name: 'cf-worker',
+    fetch: async (url: string) => {
+      const endpoint = `${WORKER_URL}?url=${encodeURIComponent(url)}`;
+      const headers: Record<string, string> = {};
+      if (WORKER_KEY) headers['X-Proxy-Key'] = WORKER_KEY;
+      const res = await fetchWithTimeout(endpoint, headers);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const text = await res.text();
-      // Reject obvious error pages from upstream
       if (text.trim().startsWith('<!') || text.trim().startsWith('<html')) {
         throw new Error('Received HTML instead of XML');
       }

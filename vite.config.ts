@@ -49,19 +49,6 @@ export default defineConfig({
               networkTimeoutSeconds: 10,
             },
           },
-          {
-            // allorigins fallback: network-first, fall back to cache
-            urlPattern: /^https:\/\/api\.allorigins\.win\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'rss-proxy-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24,
-              },
-              networkTimeoutSeconds: 5,
-            },
-          },
         ],
       },
     }),
