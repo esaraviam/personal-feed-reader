@@ -1,9 +1,58 @@
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
+import { VitePWA } from 'vite-plugin-pwa';
 
-// https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['favicon.svg', 'icons/*.svg'],
+      manifest: {
+        name: 'Daily Brief',
+        short_name: 'Daily Brief',
+        description: 'Personal, bias-minimized RSS reader. High-signal news in ≤10 minutes.',
+        theme_color: '#2563eb',
+        background_color: '#f9fafb',
+        display: 'standalone',
+        orientation: 'portrait',
+        start_url: '/',
+        scope: '/',
+        icons: [
+          {
+            src: 'icons/icon-192.svg',
+            sizes: '192x192',
+            type: 'image/svg+xml',
+          },
+          {
+            src: 'icons/icon-512.svg',
+            sizes: '512x512',
+            type: 'image/svg+xml',
+            purpose: 'any maskable',
+          },
+        ],
+      },
+      workbox: {
+        // App shell: cache-first (JS/CSS/HTML)
+        globPatterns: ['**/*.{js,css,html,svg,woff2}'],
+        runtimeCaching: [
+          {
+            // RSS proxy: network-first, fall back to cache
+            urlPattern: /^https:\/\/api\.allorigins\.win\/.*/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'rss-proxy-cache',
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 60 * 24, // 24 hours
+              },
+              networkTimeoutSeconds: 5,
+            },
+          },
+        ],
+      },
+    }),
+  ],
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],

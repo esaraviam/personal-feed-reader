@@ -3,11 +3,6 @@ import type { Category, FeedSource } from '../domain/types';
 
 const VALID_CATEGORIES = new Set<string>(['chile', 'global', 'tech', 'custom']);
 
-function toCategory(value: string | undefined): Category {
-  const normalized = value?.toLowerCase().trim() ?? '';
-  return VALID_CATEGORIES.has(normalized) ? (normalized as Category) : 'custom';
-}
-
 interface OutlineNode {
   '@_xmlUrl'?: string;
   '@_text'?: string;
