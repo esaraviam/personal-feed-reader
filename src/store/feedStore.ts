@@ -39,6 +39,20 @@ interface FeedState {
   refresh: () => Promise<void>;
 }
 
+/** Returns up to `n` articles per source, preserving ranked order. */
+function topPerSource(articles: Article[], n: number): Article[] {
+  const counts = new Map<string, number>();
+  const result: Article[] = [];
+  for (const article of articles) {
+    const count = counts.get(article.source) ?? 0;
+    if (count < n) {
+      result.push(article);
+      counts.set(article.source, count + 1);
+    }
+  }
+  return result;
+}
+
 export const useFeedStore = create<FeedState>((set, get) => ({
   feeds: [],
   articles: [],
@@ -47,12 +61,13 @@ export const useFeedStore = create<FeedState>((set, get) => ({
   loading: false,
   error: null,
 
-  getBriefArticles: () => get().articles.slice(0, 10),
+  getBriefArticles: () => topPerSource(get().articles, 5),
 
   getCategoryArticles: (category: Category) =>
-    get()
-      .articles.filter((a) => a.category === category)
-      .slice(0, 20),
+    topPerSource(
+      get().articles.filter((a) => a.category === category),
+      5,
+    ),
 
   setActiveTab: (tab) => set({ activeTab: tab }),
 
