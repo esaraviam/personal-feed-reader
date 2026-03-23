@@ -21,6 +21,30 @@ const RSS_FIXTURE = `<?xml version="1.0" encoding="UTF-8"?>
   </channel>
 </rss>`;
 
+// Feeds like The Hacker News use <guid isPermaLink="false">url</guid>
+// fast-xml-parser returns this as an object { "#text": url, "@_isPermaLink": "false" }
+const GUID_WITH_ATTR_RSS = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Hacker Feed</title>
+    <item>
+      <title>Story One</title>
+      <link>https://example.com/1</link>
+      <guid isPermaLink="false">https://example.com/1</guid>
+    </item>
+    <item>
+      <title>Story Two</title>
+      <link>https://example.com/2</link>
+      <guid isPermaLink="false">https://example.com/2</guid>
+    </item>
+    <item>
+      <title>Story Three</title>
+      <link>https://example.com/3</link>
+      <guid isPermaLink="false">https://example.com/3</guid>
+    </item>
+  </channel>
+</rss>`;
+
 const BOM_RSS = `\ufeff<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
   <channel>
@@ -92,6 +116,15 @@ describe('aggregateFeeds', () => {
     const result = await aggregateFeeds([source]);
     const article = result.find((a) => a.link === 'https://example.com/2');
     expect(article?.title).toContain('&');
+  });
+
+  it('handles <guid isPermaLink="false"> — does not collapse all articles to one id', async () => {
+    vi.stubGlobal('fetch', mockWorker(GUID_WITH_ATTR_RSS));
+    const { aggregateFeeds } = await import('./aggregator');
+    const result = await aggregateFeeds([source]);
+    expect(result.length).toBe(3);
+    const ids = result.map((a) => a.id);
+    expect(new Set(ids).size).toBe(3); // all unique, not collapsed to [object object]
   });
 
   it('handles feeds with UTF-8 BOM prefix', async () => {

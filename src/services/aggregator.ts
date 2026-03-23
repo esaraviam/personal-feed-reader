@@ -94,24 +94,32 @@ function extractLink(item: XmlNode): string {
   return '';
 }
 
+/** Extract a plain string from a value that may be a text node object like { "#text": "...", "@_attr": "..." } */
+function toText(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return String(value);
+  if (typeof value === 'object') {
+    const text = (value as XmlNode)['#text'];
+    if (text !== undefined) return String(text);
+  }
+  return '';
+}
+
 function normalizeItem(item: XmlNode, source: FeedSource): Article | null {
-  const rawTitle = item['title'];
-  const title = (
-    typeof rawTitle === 'object' && rawTitle !== null
-      ? String((rawTitle as XmlNode)['#text'] ?? '')
-      : String(rawTitle ?? '')
-  ).trim();
+  const title = toText(item['title']).trim();
 
   const link = extractLink(item);
   if (!title || !link) return null;
 
-  const guid = String(item['guid'] ?? item['id'] ?? link).trim();
+  const guid = toText(item['guid'] ?? item['id'] ?? link).trim() || link;
 
   const pubDate =
-    (item['pubDate'] as string | undefined) ??
-    (item['published'] as string | undefined) ??
-    (item['updated'] as string | undefined) ??
-    (item['dc:date'] as string | undefined);
+    toText(item['pubDate']) ||
+    toText(item['published']) ||
+    toText(item['updated']) ||
+    toText(item['dc:date']) ||
+    undefined;
 
   return {
     id: guid.toLowerCase(),
