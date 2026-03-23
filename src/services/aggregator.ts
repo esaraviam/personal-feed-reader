@@ -2,39 +2,20 @@ import { XMLParser } from 'fast-xml-parser';
 import type { Article, FeedSource } from '../domain/types';
 
 const TIMEOUT_MS = 15000;
-const CONCURRENCY = 3; // max parallel proxy requests
+const CONCURRENCY = 3;
 
-// Proxy strategies — tried in order
-const PROXIES: Array<(url: string) => Promise<string>> = [
-  // allorigins /get returns JSON {contents, status} — more reliable than /raw
-  async (url) => {
-    const res = await fetchWithTimeout(
-      `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-    );
-    if (!res.ok) throw new Error(`allorigins HTTP ${res.status}`);
-    const json = (await res.json()) as { contents?: string; status?: { http_code?: number } };
-    const httpCode = json.status?.http_code ?? 200;
-    if (httpCode >= 400) throw new Error(`allorigins upstream HTTP ${httpCode}`);
-    return json.contents ?? '';
-  },
-
-  // corsproxy.io — correct format: ?url=ENCODED
-  async (url) => {
-    const res = await fetchWithTimeout(
-      `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
-    );
-    if (!res.ok) throw new Error(`corsproxy HTTP ${res.status}`);
-    return res.text();
-  },
-];
+// Strip UTF-8 BOM if present
+function stripBOM(text: string): string {
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+}
 
 const xmlParser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: '@_',
   isArray: (tagName) => ['item', 'entry'].includes(tagName),
-  // Be lenient — ignore namespace prefixes on root element
-  processEntities: false,
+  processEntities: true,   // correctly decode &amp; &lt; &gt; etc.
   htmlEntities: true,
+  ignoreDeclaration: true, // skip <?xml ...?> so root key is always the element
 });
 
 function parseDate(raw: string | undefined): number {
@@ -50,33 +31,46 @@ function extractItems(doc: XmlNode): XmlNode[] {
   const rss = doc['rss'] as XmlNode | undefined;
   if (rss) {
     const channel = rss['channel'] as XmlNode | undefined;
-    return (channel?.['item'] as XmlNode[] | undefined) ?? [];
+    const items = (channel?.['item'] as XmlNode[] | undefined) ?? [];
+    if (items.length > 0) return items;
   }
 
-  // Atom: feed > entry[]
+  // Atom 1.0: feed > entry[]
   const feed = doc['feed'] as XmlNode | undefined;
   if (feed) {
-    return (feed['entry'] as XmlNode[] | undefined) ?? [];
+    const entries = (feed['entry'] as XmlNode[] | undefined) ?? [];
+    if (entries.length > 0) return entries;
   }
 
-  // RSS 1.0 / RDF
-  const rdf = doc['rdf:RDF'] as XmlNode | undefined;
-  if (rdf) {
-    return (rdf['item'] as XmlNode[] | undefined) ?? [];
-  }
-
-  // Some feeds have namespace prefixes on root — try any key containing 'RDF'
+  // RDF / RSS 1.0 — key is usually 'rdf:RDF' or 'RDF'
   for (const key of Object.keys(doc)) {
-    if (key.includes('RDF') || key.includes('rss') || key.includes('feed')) {
-      const node = doc[key] as XmlNode;
-      const items =
-        (node['item'] as XmlNode[] | undefined) ??
-        (node['entry'] as XmlNode[] | undefined) ??
-        ((node['channel'] as XmlNode | undefined)?.['item'] as XmlNode[] | undefined);
-      if (items?.length) return items;
+    if (/rdf/i.test(key)) {
+      const rdf = doc[key] as XmlNode;
+      const items = (rdf['item'] as XmlNode[] | undefined) ?? [];
+      if (items.length > 0) return items;
     }
   }
 
+  // Namespace-prefixed or vendor-specific root — search all top-level keys
+  for (const key of Object.keys(doc)) {
+    const node = doc[key] as XmlNode;
+    if (typeof node !== 'object' || node === null) continue;
+
+    // Try direct items/entries on the node
+    const direct =
+      (node['item'] as XmlNode[] | undefined) ??
+      (node['entry'] as XmlNode[] | undefined);
+    if (direct?.length) return direct;
+
+    // Try nested channel
+    const channel = node['channel'] as XmlNode | undefined;
+    if (channel) {
+      const channelItems = (channel['item'] as XmlNode[] | undefined) ?? [];
+      if (channelItems.length > 0) return channelItems;
+    }
+  }
+
+  console.warn('[aggregator] extractItems: no items found. Top-level keys:', Object.keys(doc));
   return [];
 }
 
@@ -84,21 +78,31 @@ function extractLink(item: XmlNode): string {
   const link = item['link'];
   if (typeof link === 'string') return link.trim();
   if (Array.isArray(link)) {
-    const alt = link.find((l: XmlNode) => !l['@_rel'] || l['@_rel'] === 'alternate');
-    if (alt) return String(alt['@_href'] ?? '').trim();
-    if (link[0]) return String((link[0] as XmlNode)['@_href'] ?? '').trim();
+    // Atom: prefer rel="alternate" or no rel
+    const alt = (link as XmlNode[]).find(
+      (l) => !l['@_rel'] || l['@_rel'] === 'alternate',
+    );
+    if (alt?.['@_href']) return String(alt['@_href']).trim();
+    // Fallback: first href
+    const first = link[0] as XmlNode | undefined;
+    if (first?.['@_href']) return String(first['@_href']).trim();
   }
   if (typeof link === 'object' && link !== null) {
     const href = (link as XmlNode)['@_href'];
-    if (typeof href === 'string') return href.trim();
+    if (href) return String(href).trim();
   }
   return '';
 }
 
 function normalizeItem(item: XmlNode, source: FeedSource): Article | null {
-  const title = String(item['title'] ?? '').trim();
-  const link = extractLink(item);
+  const rawTitle = item['title'];
+  const title = (
+    typeof rawTitle === 'object' && rawTitle !== null
+      ? String((rawTitle as XmlNode)['#text'] ?? '')
+      : String(rawTitle ?? '')
+  ).trim();
 
+  const link = extractLink(item);
   if (!title || !link) return null;
 
   const guid = String(item['guid'] ?? item['id'] ?? link).trim();
@@ -126,23 +130,69 @@ function fetchWithTimeout(url: string): Promise<Response> {
   return fetch(url, { signal: controller.signal }).finally(() => clearTimeout(timer));
 }
 
-async function fetchFeed(url: string): Promise<XmlNode[]> {
-  for (const proxyFn of PROXIES) {
-    try {
-      const text = await proxyFn(url);
+// Proxy strategies — tried in order until one succeeds
+const PROXIES: Array<{ name: string; fetch: (url: string) => Promise<string> }> = [
+  {
+    name: 'allorigins/get',
+    fetch: async (url) => {
+      const res = await fetchWithTimeout(
+        `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = (await res.json()) as {
+        contents?: string;
+        status?: { http_code?: number };
+      };
+      const httpCode = json.status?.http_code ?? 200;
+      if (httpCode >= 400) throw new Error(`upstream HTTP ${httpCode}`);
+      return json.contents ?? '';
+    },
+  },
+  {
+    name: 'allorigins/raw',
+    fetch: async (url) => {
+      const res = await fetchWithTimeout(
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.text();
+    },
+  },
+  {
+    name: 'corsproxy.io',
+    fetch: async (url) => {
+      const res = await fetchWithTimeout(
+        `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const text = await res.text();
+      // Reject obvious error pages from upstream
+      if (text.trim().startsWith('<!') || text.trim().startsWith('<html')) {
+        throw new Error('Received HTML instead of XML');
+      }
+      return text;
+    },
+  },
+];
 
-      if (!text?.trim()) throw new Error('Empty response');
+async function fetchFeed(url: string): Promise<XmlNode[]> {
+  for (const proxy of PROXIES) {
+    try {
+      const raw = await proxy.fetch(url);
+      const text = stripBOM(raw ?? '');
+
+      if (!text.trim()) throw new Error('Empty response');
       if (!text.trim().startsWith('<')) {
-        throw new Error(`Non-XML response (starts: ${text.slice(0, 60)})`);
+        throw new Error(`Non-XML (starts: ${text.slice(0, 60)})`);
       }
 
       const doc = xmlParser.parse(text) as XmlNode;
       const items = extractItems(doc);
 
-      if (items.length === 0) throw new Error('Parsed XML but found 0 items');
+      if (items.length === 0) throw new Error('Parsed XML — 0 items found');
       return items;
     } catch (err) {
-      console.warn(`[aggregator] proxy failed for ${url}:`, (err as Error).message);
+      console.warn(`[aggregator] ${proxy.name} failed for ${url}:`, (err as Error).message);
     }
   }
 
@@ -150,24 +200,28 @@ async function fetchFeed(url: string): Promise<XmlNode[]> {
   return [];
 }
 
-// Run promises with max N concurrent
-async function pLimit<T>(
-  tasks: Array<() => Promise<T>>,
-  limit: number,
-): Promise<T[]> {
-  const results: T[] = [];
+// Concurrency-limited Promise.all with per-task error isolation
+async function pLimit<T>(tasks: Array<() => Promise<T>>, limit: number): Promise<T[]> {
+  const results: Array<T | undefined> = new Array(tasks.length);
   let idx = 0;
 
   async function worker() {
     while (idx < tasks.length) {
       const i = idx++;
-      results[i] = await tasks[i]();
+      try {
+        results[i] = await tasks[i]();
+      } catch (err) {
+        console.error('[aggregator] task error at index', i, err);
+        results[i] = undefined;
+      }
     }
   }
 
-  const workers = Array.from({ length: Math.min(limit, tasks.length) }, worker);
-  await Promise.all(workers);
-  return results;
+  await Promise.all(
+    Array.from({ length: Math.min(limit, tasks.length) }, worker),
+  );
+
+  return results.filter((r): r is T => r !== undefined);
 }
 
 export async function aggregateFeeds(sources: FeedSource[]): Promise<Article[]> {
@@ -183,12 +237,12 @@ export async function aggregateFeeds(sources: FeedSource[]): Promise<Article[]> 
     },
   );
 
-  const results = await pLimit(tasks, CONCURRENCY);
+  const batches = await pLimit(tasks, CONCURRENCY);
 
   const seen = new Set<string>();
   const articles: Article[] = [];
 
-  for (const batch of results) {
+  for (const batch of batches) {
     for (const article of batch) {
       if (!seen.has(article.id)) {
         seen.add(article.id);
