@@ -12,7 +12,5 @@ compatibility_flags = ["nodejs_compat"]
 #   npx wrangler secret put AUTH_KEY
 # Then set VITE_PROXY_KEY in your app's .env.production
 
-[[routes]]
-# Uncomment and fill in after deploying your custom domain (optional):
-# pattern = "proxy.yourdomain.com"
-# zone_name = "yourdomain.com"
+# To add a custom domain after deploying, run:
+#   npx wrangler deploy --route "proxy.yourdomain.com/*"
