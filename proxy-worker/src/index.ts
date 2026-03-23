@@ -68,7 +68,6 @@ export default {
           Accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml, */*',
         },
         redirect: 'follow',
-        cf: { cacheTtl: CACHE_TTL, cacheEverything: true },
       });
     } catch (err) {
       return corsResponse(
