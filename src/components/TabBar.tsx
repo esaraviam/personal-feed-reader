@@ -12,6 +12,7 @@ const TABS: Tab[] = [
   { id: 'global', label: 'Global', icon: '🌍' },
   { id: 'tech', label: 'Tech', icon: '💻' },
   { id: 'custom', label: 'Custom', icon: '📌' },
+  { id: 'discover', label: 'Discover', icon: '🔍' },
   { id: 'settings', label: 'Settings', icon: '⚙️' },
 ];
 

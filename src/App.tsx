@@ -5,6 +5,7 @@ import { OfflineBanner } from './components/OfflineBanner';
 import { HomeView } from './views/HomeView';
 import { CategoryView } from './views/CategoryView';
 import { SettingsView } from './views/SettingsView';
+import { DiscoverView } from './views/DiscoverView';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
 import type { Category } from './domain/types';
 
@@ -15,6 +16,7 @@ function ActiveView() {
 
   if (activeTab === 'brief') return <HomeView />;
   if (activeTab === 'settings') return <SettingsView />;
+  if (activeTab === 'discover') return <DiscoverView />;
   if (CATEGORY_TABS.has(activeTab)) return <CategoryView category={activeTab as Category} />;
   return null;
 }

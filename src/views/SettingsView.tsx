@@ -1,6 +1,7 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useFeedStore } from '../store/feedStore';
 import { StatusBanner } from '../components/StatusBanner';
+import { validateFeed, buildFeedSource } from '../services/feedValidator';
 import type { Category } from '../domain/types';
 
 const CATEGORY_LABELS: Record<Category, string> = {
@@ -10,9 +11,36 @@ const CATEGORY_LABELS: Record<Category, string> = {
   custom: '📌 Custom',
 };
 
+const CATEGORIES: Category[] = ['chile', 'global', 'tech', 'custom'];
+
 export function SettingsView() {
-  const { feeds, loading, error, importOPML, toggleFeed } = useFeedStore();
+  const { feeds, loading, error, importOPML, toggleFeed, addFeed, removeFeed } = useFeedStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [addUrl, setAddUrl] = useState('');
+  const [addCategory, setAddCategory] = useState<Category>('custom');
+  const [addLoading, setAddLoading] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [addSuccess, setAddSuccess] = useState<string | null>(null);
+
+  async function handleAddFeed(e: React.FormEvent) {
+    e.preventDefault();
+    if (!addUrl.trim()) return;
+    setAddLoading(true);
+    setAddError(null);
+    setAddSuccess(null);
+    try {
+      const validated = await validateFeed(addUrl);
+      const feed = buildFeedSource(validated, addCategory);
+      await addFeed(feed);
+      setAddSuccess(`Added "${validated.name}"`);
+      setAddUrl('');
+    } catch (err) {
+      setAddError((err as Error).message);
+    } finally {
+      setAddLoading(false);
+    }
+  }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -61,6 +89,46 @@ export function SettingsView() {
         />
       </div>
 
+      {/* Add Feed */}
+      <div className="p-4 border-b border-gray-100">
+        <p className="text-sm font-medium text-gray-700 mb-1">Add a Feed</p>
+        <p className="text-xs text-gray-400 mb-3">
+          Paste any RSS/Atom URL or website address — the feed will be auto-detected.
+        </p>
+        <form onSubmit={(e) => void handleAddFeed(e)} className="flex flex-col gap-2">
+          <input
+            type="text"
+            value={addUrl}
+            onChange={(e) => setAddUrl(e.target.value)}
+            placeholder="https://example.com/feed or https://example.com"
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          <div className="flex gap-2">
+            <select
+              value={addCategory}
+              onChange={(e) => setAddCategory(e.target.value as Category)}
+              className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            >
+              {CATEGORIES.map((c) => (
+                <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>
+              ))}
+            </select>
+            <button
+              type="submit"
+              disabled={addLoading || !addUrl.trim()}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
+            >
+              {addLoading ? (
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : null}
+              {addLoading ? 'Checking…' : 'Add'}
+            </button>
+          </div>
+        </form>
+        {addError && <p className="mt-2 text-xs text-red-600">{addError}</p>}
+        {addSuccess && <p className="mt-2 text-xs text-green-600">{addSuccess}</p>}
+      </div>
+
       {/* Feed List */}
       <div className="p-4">
         <div className="flex items-center justify-between mb-3">
@@ -94,22 +162,34 @@ export function SettingsView() {
                   </div>
                 </div>
 
-                {/* Toggle */}
-                <button
-                  onClick={() => void toggleFeed(feed.id)}
-                  role="switch"
-                  aria-checked={feed.active}
-                  aria-label={`${feed.active ? 'Disable' : 'Enable'} ${feed.name}`}
-                  className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors ${
-                    feed.active ? 'bg-blue-500' : 'bg-gray-200'
-                  }`}
-                >
-                  <span
-                    className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                      feed.active ? 'translate-x-5' : 'translate-x-0'
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {/* Toggle */}
+                  <button
+                    onClick={() => void toggleFeed(feed.id)}
+                    role="switch"
+                    aria-checked={feed.active}
+                    aria-label={`${feed.active ? 'Disable' : 'Enable'} ${feed.name}`}
+                    className={`relative w-10 h-5 rounded-full transition-colors ${
+                      feed.active ? 'bg-blue-500' : 'bg-gray-200'
                     }`}
-                  />
-                </button>
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                        feed.active ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                  {/* Remove */}
+                  <button
+                    onClick={() => void removeFeed(feed.id)}
+                    aria-label={`Remove ${feed.name}`}
+                    className="p-1 text-gray-300 hover:text-red-400 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
