@@ -124,14 +124,38 @@ function normalizeItem(item: XmlNode, source: FeedSource): Article | null {
   };
 }
 
-function fetchWithTimeout(url: string): Promise<Response> {
+function fetchWithTimeout(url: string, headers?: Record<string, string>): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  return fetch(url, { signal: controller.signal }).finally(() => clearTimeout(timer));
+  return fetch(url, { signal: controller.signal, headers }).finally(() => clearTimeout(timer));
 }
 
 // Proxy strategies — tried in order until one succeeds
+const WORKER_URL = import.meta.env.VITE_PROXY_URL as string | undefined;
+const WORKER_KEY = import.meta.env.VITE_PROXY_KEY as string | undefined;
+
+const workerProxy = WORKER_URL
+  ? [
+      {
+        name: 'cf-worker',
+        fetch: async (url: string) => {
+          const endpoint = `${WORKER_URL}?url=${encodeURIComponent(url)}`;
+          const headers: Record<string, string> = {};
+          if (WORKER_KEY) headers['X-Proxy-Key'] = WORKER_KEY;
+          const res = await fetchWithTimeout(endpoint, headers);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const text = await res.text();
+          if (text.trim().startsWith('<!') || text.trim().startsWith('<html')) {
+            throw new Error('Received HTML instead of XML');
+          }
+          return text;
+        },
+      },
+    ]
+  : [];
+
 const PROXIES: Array<{ name: string; fetch: (url: string) => Promise<string> }> = [
+  ...workerProxy,
   {
     name: 'allorigins/get',
     fetch: async (url) => {
