@@ -130,7 +130,16 @@ export function DiscoverView() {
                   {result.description && (
                     <p className="text-xs text-gray-400 line-clamp-2 mt-0.5">{result.description}</p>
                   )}
-                  <p className="text-xs text-gray-300 truncate mt-0.5">{result.url}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <p className="text-xs text-gray-300 truncate">{result.url}</p>
+                    {result.subscribers != null && result.subscribers > 0 && (
+                      <span className="text-xs text-gray-400 whitespace-nowrap">
+                        {result.subscribers >= 1000
+                          ? `${Math.round(result.subscribers / 1000)}k subscribers`
+                          : `${result.subscribers} subscribers`}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Actions */}
@@ -186,7 +195,7 @@ export function DiscoverView() {
         <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
           <span className="text-4xl mb-3">🔍</span>
           <p className="text-sm text-gray-500">Search for any topic or publication to find RSS feeds.</p>
-          <p className="text-xs text-gray-400 mt-1">Powered by feedsearch.dev</p>
+          <p className="text-xs text-gray-400 mt-1">Powered by Feedly</p>
         </div>
       )}
     </div>

@@ -1,20 +1,25 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { searchFeeds } from './feedSearch';
 
-const MOCK_RESULTS = [
-  {
-    url: 'https://techcrunch.com/feed/',
-    title: 'TechCrunch',
-    description: 'Startup and Technology News',
-    favicon: 'https://techcrunch.com/favicon.ico',
-  },
-  {
-    url: 'https://techcrunch.com/crunchbase/feed/',
-    title: 'TechCrunch Crunchbase',
-    description: '',
-    favicon: null,
-  },
-];
+const MOCK_FEEDLY = {
+  results: [
+    {
+      feedId: 'feed/https://techcrunch.com/feed/',
+      title: 'TechCrunch',
+      description: 'Startup and Technology News',
+      iconUrl: 'https://techcrunch.com/favicon.ico',
+      website: 'https://techcrunch.com',
+      subscribers: 1320958,
+    },
+    {
+      feedId: 'feed/https://techcrunch.com/crunchbase/feed/',
+      title: 'TechCrunch Crunchbase',
+      description: '',
+      website: null,
+      subscribers: 5000,
+    },
+  ],
+};
 
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn());
@@ -25,31 +30,42 @@ afterEach(() => {
 });
 
 describe('searchFeeds', () => {
-  it('returns mapped results from feedsearch.dev', async () => {
+  it('returns mapped results from Feedly', async () => {
     vi.mocked(fetch).mockResolvedValue({
       ok: true,
       status: 200,
-      text: () => Promise.resolve(JSON.stringify(MOCK_RESULTS)),
+      text: () => Promise.resolve(JSON.stringify(MOCK_FEEDLY)),
     } as Response);
 
     const results = await searchFeeds('techcrunch');
     expect(results.length).toBe(2);
     expect(results[0].url).toBe('https://techcrunch.com/feed/');
     expect(results[0].title).toBe('TechCrunch');
-    expect(results[0].description).toBe('Startup and Technology News');
+    expect(results[0].subscribers).toBe(1320958);
   });
 
-  it('returns empty array for blank query', async () => {
+  it('strips the "feed/" prefix from feedId', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: () => Promise.resolve(JSON.stringify(MOCK_FEEDLY)),
+    } as Response);
+
+    const results = await searchFeeds('techcrunch');
+    expect(results[0].url).not.toMatch(/^feed\//);
+  });
+
+  it('returns empty array for blank query without fetching', async () => {
     const results = await searchFeeds('   ');
     expect(results).toHaveLength(0);
     expect(vi.mocked(fetch)).not.toHaveBeenCalled();
   });
 
-  it('filters out results with no URL', async () => {
+  it('filters out results with no feedId', async () => {
     vi.mocked(fetch).mockResolvedValue({
       ok: true,
       status: 200,
-      text: () => Promise.resolve(JSON.stringify([{ title: 'No URL result' }])),
+      text: () => Promise.resolve(JSON.stringify({ results: [{ title: 'No URL' }] })),
     } as Response);
 
     const results = await searchFeeds('something');
@@ -66,7 +82,7 @@ describe('searchFeeds', () => {
     await expect(searchFeeds('query')).rejects.toThrow('HTTP 503');
   });
 
-  it('throws on invalid JSON response', async () => {
+  it('throws on invalid JSON', async () => {
     vi.mocked(fetch).mockResolvedValue({
       ok: true,
       status: 200,
@@ -76,17 +92,14 @@ describe('searchFeeds', () => {
     await expect(searchFeeds('query')).rejects.toThrow('Invalid response');
   });
 
-  it('uses feed_url field as fallback when url is missing', async () => {
+  it('returns empty array when results field is missing', async () => {
     vi.mocked(fetch).mockResolvedValue({
       ok: true,
       status: 200,
-      text: () =>
-        Promise.resolve(
-          JSON.stringify([{ feed_url: 'https://example.com/feed', title: 'Example' }]),
-        ),
+      text: () => Promise.resolve(JSON.stringify({ success: true })),
     } as Response);
 
-    const results = await searchFeeds('example');
-    expect(results[0].url).toBe('https://example.com/feed');
+    const results = await searchFeeds('query');
+    expect(results).toHaveLength(0);
   });
 });
