@@ -37,14 +37,27 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,woff2}'],
         runtimeCaching: [
           {
-            // RSS proxy: network-first, fall back to cache
+            // Self-hosted CF worker proxy: network-first, fall back to cache
+            urlPattern: /^https:\/\/.*\.workers\.dev\/.*/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'rss-proxy-cache',
+              expiration: {
+                maxEntries: 100,
+                maxAgeSeconds: 60 * 60 * 24, // 24 hours
+              },
+              networkTimeoutSeconds: 10,
+            },
+          },
+          {
+            // allorigins fallback: network-first, fall back to cache
             urlPattern: /^https:\/\/api\.allorigins\.win\/.*/i,
             handler: 'NetworkFirst',
             options: {
               cacheName: 'rss-proxy-cache',
               expiration: {
                 maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24, // 24 hours
+                maxAgeSeconds: 60 * 60 * 24,
               },
               networkTimeoutSeconds: 5,
             },
