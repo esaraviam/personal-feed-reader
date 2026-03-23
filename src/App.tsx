@@ -39,23 +39,33 @@ export default function App() {
   }, []); // intentionally run once on mount
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* App header */}
-      <header className="bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-2">
-        <span className="text-lg">📰</span>
-        <h1 className="text-base font-semibold text-gray-900 tracking-tight">Daily Brief</h1>
+      <header className="bg-white border-b border-slate-100 px-4 py-3 flex items-center gap-2.5 sticky top-0 z-10 shadow-[0_1px_0_0_#f1f5f9]">
+        <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center shadow-sm">
+          <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none"/>
+          </svg>
+        </div>
+        <h1 className="text-[15px] font-semibold text-slate-900 tracking-tight">Daily Brief</h1>
+        {!isOnline && (
+          <span className="ml-auto text-[11px] font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+            Offline
+          </span>
+        )}
       </header>
 
-      {/* Offline banner — shown only when offline */}
+      {/* Offline banner */}
       <OfflineBanner />
 
-      {/* Tab navigation */}
-      <TabBar />
-
-      {/* Main content */}
-      <main className="flex-1 max-w-2xl w-full mx-auto">
+      {/* Tab navigation — sticky bottom */}
+      <main className="flex-1 max-w-2xl w-full mx-auto pb-16">
         <ActiveView />
       </main>
+
+      <div className="fixed bottom-0 left-0 right-0 max-w-2xl mx-auto z-10">
+        <TabBar />
+      </div>
     </div>
   );
 }
