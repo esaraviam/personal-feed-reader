@@ -14,7 +14,7 @@ const CATEGORY_LABELS: Record<Category, string> = {
 const CATEGORIES: Category[] = ['chile', 'global', 'tech', 'custom'];
 
 export function SettingsView() {
-  const { feeds, loading, error, importOPML, toggleFeed, addFeed, removeFeed } = useFeedStore();
+  const { feeds, loading, error, importOPML, toggleFeed, addFeed, removeFeed, updateFeedCategory } = useFeedStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [addUrl, setAddUrl] = useState('');
@@ -147,22 +147,24 @@ export function SettingsView() {
             {feeds.map((feed) => (
               <li
                 key={feed.id}
-                className="flex items-center justify-between gap-3 p-3 bg-white border border-gray-100 rounded-lg"
+                className="flex items-start justify-between gap-3 p-3 bg-white border border-gray-100 rounded-lg"
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-800 truncate">{feed.name}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-xs text-gray-400 truncate max-w-[180px]">
-                      {feed.url}
-                    </span>
-                    <span className="text-xs text-gray-300">·</span>
-                    <span className="text-xs text-gray-500">
-                      {CATEGORY_LABELS[feed.category]}
-                    </span>
-                  </div>
+                  <p className="text-xs text-gray-400 truncate mt-0.5">{feed.url}</p>
+                  {/* Category selector */}
+                  <select
+                    value={feed.category}
+                    onChange={(e) => void updateFeedCategory(feed.id, e.target.value as Category)}
+                    className="mt-2 text-xs border border-gray-200 rounded-md px-2 py-1 bg-white text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  >
+                    {CATEGORIES.map((c) => (
+                      <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>
+                    ))}
+                  </select>
                 </div>
 
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-center gap-2 flex-shrink-0 mt-0.5">
                   {/* Toggle */}
                   <button
                     onClick={() => void toggleFeed(feed.id)}

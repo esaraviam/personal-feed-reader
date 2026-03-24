@@ -35,6 +35,7 @@ interface FeedState {
   importOPML: (file: File) => Promise<void>;
   addFeed: (feed: FeedSource) => Promise<void>;
   removeFeed: (feedId: string) => Promise<void>;
+  updateFeedCategory: (feedId: string, category: Category) => Promise<void>;
   toggleFeed: (feedId: string) => Promise<void>;
   refresh: () => Promise<void>;
 }
@@ -121,6 +122,12 @@ export const useFeedStore = create<FeedState>((set, get) => ({
 
   removeFeed: async (feedId: string) => {
     const feeds = get().feeds.filter((f) => f.id !== feedId);
+    await saveFeeds(feeds);
+    set({ feeds });
+  },
+
+  updateFeedCategory: async (feedId: string, category: Category) => {
+    const feeds = get().feeds.map((f) => f.id === feedId ? { ...f, category } : f);
     await saveFeeds(feeds);
     set({ feeds });
   },
