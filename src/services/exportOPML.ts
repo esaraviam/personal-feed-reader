@@ -15,9 +15,6 @@ export function generateOPML(
 ): string {
   const now = new Date().toUTCString();
 
-  // Build a lookup map for fast category name resolution
-  const catMap = new Map(categories.map((c) => [c.id, c]));
-
   // Separate active and inactive feeds
   const activeFeeds = feeds.filter((f) => f.active);
   const inactiveFeeds = feeds.filter((f) => !f.active);
