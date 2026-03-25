@@ -55,6 +55,12 @@ export interface Translations {
     adding: string;
     add: string;
     added: string;
+    recommendedTitle: string;
+    recommendedSubtitle: string;
+    showMore: string;
+    showLess: string;
+    allLanguages: string;
+    yourLanguage: string;
   };
 
   // Settings view
@@ -224,6 +230,12 @@ const en: Translations = {
     adding: 'Adding…',
     add: 'Add',
     added: 'Added',
+    recommendedTitle: 'Recommended for you',
+    recommendedSubtitle: 'Curated feeds matched to your language',
+    showMore: 'Show more',
+    showLess: 'Show less',
+    allLanguages: 'All languages',
+    yourLanguage: 'Your language',
   },
   settings: {
     title: 'Settings',
@@ -392,6 +404,12 @@ const es: Translations = {
     adding: 'Agregando…',
     add: 'Agregar',
     added: 'Agregada',
+    recommendedTitle: 'Recomendadas para ti',
+    recommendedSubtitle: 'Fuentes seleccionadas según tu idioma',
+    showMore: 'Ver más',
+    showLess: 'Ver menos',
+    allLanguages: 'Todos los idiomas',
+    yourLanguage: 'Tu idioma',
   },
   settings: {
     title: 'Ajustes',
