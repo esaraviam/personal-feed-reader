@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Article, FeedSource, Category } from './types';
+import type { Article, FeedSource, CategoryId } from './types';
 
 describe('Domain Types', () => {
   it('constructs a valid Article', () => {
@@ -8,12 +8,12 @@ describe('Domain Types', () => {
       title: 'Test Article',
       link: 'https://example.com/article-1',
       source: 'Example Feed',
-      category: 'tech',
+      categoryId: 'tech',
       publishedAt: Date.parse('2026-03-23T10:00:00Z'),
       score: 7,
     };
     expect(article.id).toBe('https://example.com/article-1');
-    expect(article.category).toBe('tech');
+    expect(article.categoryId).toBe('tech');
     expect(article.score).toBe(7);
   });
 
@@ -22,7 +22,7 @@ describe('Domain Types', () => {
       id: 'feed-1',
       name: 'Hacker News',
       url: 'https://news.ycombinator.com/rss',
-      category: 'tech',
+      categoryId: 'tech',
       active: true,
       priority: 2,
     };
@@ -30,8 +30,8 @@ describe('Domain Types', () => {
     expect(feed.priority).toBe(2);
   });
 
-  it('allows all valid Category values', () => {
-    const categories: Category[] = ['chile', 'global', 'tech', 'custom'];
-    expect(categories).toHaveLength(4);
+  it('CategoryId is a string type (not a union)', () => {
+    const id: CategoryId = 'any-user-defined-id';
+    expect(typeof id).toBe('string');
   });
 });

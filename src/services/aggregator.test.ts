@@ -80,7 +80,7 @@ const source: FeedSource = {
   id: 'https://example.com/rss',
   name: 'Example',
   url: 'https://example.com/rss',
-  category: 'tech',
+  categoryId: 'tech',
   active: true,
   priority: 1,
 };
@@ -108,7 +108,7 @@ describe('aggregateFeeds', () => {
     const result = await aggregateFeeds([source]);
     expect(result.length).toBe(2);
     expect(result[0].source).toBe('Example');
-    expect(result[0].category).toBe('tech');
+    expect(result[0].categoryId).toBe('tech');
   });
 
   it('decodes XML entities in titles', async () => {

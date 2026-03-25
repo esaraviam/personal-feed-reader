@@ -1,5 +1,5 @@
 import { XMLParser } from 'fast-xml-parser';
-import type { Category, FeedSource } from '../domain/types';
+import type { CategoryId, FeedSource } from '../domain/types';
 
 const VALID_CATEGORIES = new Set<string>(['chile', 'global', 'tech', 'custom']);
 
@@ -12,7 +12,7 @@ interface OutlineNode {
 
 function extractFeeds(
   outlines: OutlineNode[],
-  parentCategory: Category,
+  parentCategoryId: CategoryId,
   seen: Set<string>,
   result: FeedSource[],
 ): void {
@@ -28,7 +28,7 @@ function extractFeeds(
           id,
           name: name || xmlUrl,
           url: xmlUrl,
-          category: parentCategory,
+          categoryId: parentCategoryId,
           active: true,
           priority: 1,
         });
@@ -37,11 +37,9 @@ function extractFeeds(
       // Category/folder node — only override category if name is a recognized value;
       // intermediate folders (e.g. "Programming") inherit the parent category.
       const normalized = name.toLowerCase().trim();
-      const childCategory = VALID_CATEGORIES.has(normalized)
-        ? (normalized as Category)
-        : parentCategory;
+      const childCategoryId = VALID_CATEGORIES.has(normalized) ? normalized : parentCategoryId;
       if (outline.outline) {
-        extractFeeds(outline.outline, childCategory, seen, result);
+        extractFeeds(outline.outline, childCategoryId, seen, result);
       }
     }
   }
@@ -56,7 +54,15 @@ function readFileAsText(file: File): Promise<string> {
   });
 }
 
+/** Max OPML file size accepted (1 MB) — prevents memory exhaustion from large files */
+const MAX_OPML_BYTES = 1_000_000;
+
 export async function parseOPML(file: File): Promise<FeedSource[]> {
+  // Reject oversized files before reading
+  if (file.size > MAX_OPML_BYTES) {
+    throw new Error('OPML file too large (max 1 MB).');
+  }
+
   let xml: string;
   try {
     xml = await readFileAsText(file);
@@ -66,12 +72,21 @@ export async function parseOPML(file: File): Promise<FeedSource[]> {
 
   if (!xml.trim()) return [];
 
+  // Reject DOCTYPE declarations entirely — prevents XXE and billion-laughs attacks.
+  // Valid OPML files never need a DOCTYPE.
+  if (/<!DOCTYPE/i.test(xml)) {
+    throw new Error('OPML file contains a DOCTYPE declaration which is not allowed.');
+  }
+
   try {
     const parser = new XMLParser({
       ignoreAttributes: false,
       attributeNamePrefix: '@_',
       // Always treat <outline> as an array regardless of count
       isArray: (tagName: string) => tagName === 'outline',
+      // Disable entity processing to prevent XXE / entity expansion attacks
+      processEntities: false,
+      htmlEntities: false,
     });
 
     const doc = parser.parse(xml) as {
@@ -81,7 +96,7 @@ export async function parseOPML(file: File): Promise<FeedSource[]> {
     const outlines = doc?.opml?.body?.outline ?? [];
     const result: FeedSource[] = [];
     const seen = new Set<string>();
-    extractFeeds(outlines, 'custom', seen, result);
+    extractFeeds(outlines, 'custom', seen, result); // fallback: 'custom' is always a valid default
     return result;
   } catch {
     return [];

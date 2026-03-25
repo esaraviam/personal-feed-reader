@@ -1,5 +1,5 @@
 import { XMLParser } from 'fast-xml-parser';
-import type { Category, FeedSource } from '../domain/types';
+import type { CategoryId, FeedSource } from '../domain/types';
 
 const WORKER_URL = import.meta.env.VITE_PROXY_URL as string;
 const WORKER_KEY = import.meta.env.VITE_PROXY_KEY as string | undefined;
@@ -115,14 +115,14 @@ export async function validateFeed(rawUrl: string): Promise<ValidatedFeed> {
 /** Build a FeedSource from a validated feed result */
 export function buildFeedSource(
   validated: ValidatedFeed,
-  category: Category = 'custom',
+  categoryId: CategoryId = 'custom',
   priority = 1,
 ): FeedSource {
   return {
     id: validated.url.toLowerCase(),
     name: validated.name,
     url: validated.url,
-    category,
+    categoryId,
     active: true,
     priority,
   };

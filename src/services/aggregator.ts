@@ -126,7 +126,7 @@ function normalizeItem(item: XmlNode, source: FeedSource): Article | null {
     title,
     link,
     source: source.name,
-    category: source.category,
+    categoryId: source.categoryId,
     publishedAt: parseDate(pubDate),
     score: 0,
   };

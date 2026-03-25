@@ -10,7 +10,7 @@ function makeArticle(overrides: Partial<Article> = {}): Article {
     title: 'Generic Article',
     link: 'https://example.com/1',
     source: 'Example',
-    category: 'tech',
+    categoryId: 'tech',
     publishedAt: NOW - 30 * 60 * 1000, // 30 min ago → recency +3
     score: 0,
     ...overrides,
@@ -21,7 +21,7 @@ const source: FeedSource = {
   id: 'example',
   name: 'Example',
   url: 'https://example.com/rss',
-  category: 'tech',
+  categoryId: 'tech',
   active: true,
   priority: 1,
 };

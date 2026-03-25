@@ -104,17 +104,17 @@ describe('parseOPML', () => {
     const tech = result.find((f) => f.name === 'Hacker News');
     const custom = result.find((f) => f.name === 'My Blog');
 
-    expect(chile?.category).toBe('chile');
-    expect(global?.category).toBe('global');
-    expect(tech?.category).toBe('tech');
-    expect(custom?.category).toBe('custom');
+    expect(chile?.categoryId).toBe('chile');
+    expect(global?.categoryId).toBe('global');
+    expect(tech?.categoryId).toBe('tech');
+    expect(custom?.categoryId).toBe('custom');
   });
 
   it('supports deep nesting (3+ levels)', async () => {
     const result = await parseOPML(makeFile(DEEP_NESTING));
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe('CSS Tricks');
-    expect(result[0].category).toBe('tech');
+    expect(result[0].categoryId).toBe('tech');
   });
 
   it('deduplicates feeds with the same URL', async () => {
@@ -136,13 +136,13 @@ describe('parseOPML', () => {
   it('falls back to "custom" for unrecognized category names', async () => {
     const result = await parseOPML(makeFile(UNKNOWN_CATEGORY));
     const espn = result.find((f) => f.url === 'https://www.espn.com/espn/rss/news');
-    expect(espn?.category).toBe('custom');
+    expect(espn?.categoryId).toBe('custom');
   });
 
   it('falls back to "custom" for top-level feeds with no parent category', async () => {
     const result = await parseOPML(makeFile(UNKNOWN_CATEGORY));
     const direct = result.find((f) => f.url === 'https://example.com/rss');
-    expect(direct?.category).toBe('custom');
+    expect(direct?.categoryId).toBe('custom');
   });
 
   it('returns empty array for an empty file', async () => {

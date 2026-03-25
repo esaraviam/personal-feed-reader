@@ -84,7 +84,7 @@ describe('buildFeedSource', () => {
     const feed = buildFeedSource({ url: 'https://testblog.com/feed', name: 'Test Blog' });
     expect(feed.id).toBe('https://testblog.com/feed');
     expect(feed.name).toBe('Test Blog');
-    expect(feed.category).toBe('custom');
+    expect(feed.categoryId).toBe('custom');
     expect(feed.active).toBe(true);
     expect(feed.priority).toBe(1);
   });
@@ -95,7 +95,7 @@ describe('buildFeedSource', () => {
       'tech',
       3,
     );
-    expect(feed.category).toBe('tech');
+    expect(feed.categoryId).toBe('tech');
     expect(feed.priority).toBe(3);
   });
 });
