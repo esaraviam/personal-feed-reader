@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useFeedStore } from '../store/feedStore';
 import { useOnboarding } from '../contexts/OnboardingContext';
+import { useExport } from '../hooks/useExport';
 import { StatusBanner } from '../components/StatusBanner';
 import { validateFeed, buildFeedSource } from '../services/feedValidator';
 import { CategoryManager } from '../components/CategoryManager';
@@ -35,6 +36,7 @@ export function SettingsView() {
   const { feeds, categories, loading, error, importOPML, toggleFeed, addFeed, removeFeed, updateFeedCategory, refresh } = useFeedStore();
   const { t } = useTranslation();
   const { reset: resetOnboarding } = useOnboarding();
+  const { exportOPML, exportJSON, hasFeeds } = useExport();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [view, setView] = useState<SettingsView>('main');
 
@@ -137,6 +139,34 @@ export function SettingsView() {
           onChange={handleFileChange}
           className="hidden"
         />
+      </div>
+
+      {/* Export Feeds */}
+      <div className="p-4 border-b border-gray-100 dark:border-slate-800">
+        <p className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">{t.settings.exportTitle}</p>
+        <p className="text-xs text-gray-400 dark:text-slate-500 mb-3">{t.settings.exportDesc}</p>
+        <div className="flex gap-2">
+          <button
+            onClick={exportOPML}
+            disabled={!hasFeeds}
+            className="flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 text-slate-700 dark:text-slate-300 text-sm font-medium rounded-lg transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            {t.settings.exportOpml}
+          </button>
+          <button
+            onClick={exportJSON}
+            disabled={!hasFeeds}
+            className="flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 text-slate-700 dark:text-slate-300 text-sm font-medium rounded-lg transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            {t.settings.exportJson}
+          </button>
+        </div>
       </div>
 
       {/* Manage Categories */}

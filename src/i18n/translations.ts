@@ -71,6 +71,10 @@ export interface Translations {
     add: string;
     feedsTitle: (active: number, total: number) => string;
     noFeeds: string;
+    exportTitle: string;
+    exportDesc: string;
+    exportOpml: string;
+    exportJson: string;
     removeDialog: {
       title: string;
       description: (name: string) => string;
@@ -231,6 +235,10 @@ const en: Translations = {
     add: 'Add',
     feedsTitle: (active, total) => `Feeds (${active} of ${total} active)`,
     noFeeds: 'No feeds imported yet.',
+    exportTitle: 'Export Feeds',
+    exportDesc: 'Download your feeds as OPML (compatible with any RSS reader) or as a JSON backup.',
+    exportOpml: 'Export OPML',
+    exportJson: 'Export JSON',
     removeDialog: {
       title: 'Remove feed?',
       description: (name) => `"${name}" will be removed from your feeds. This cannot be undone.`,
@@ -392,6 +400,10 @@ const es: Translations = {
     add: 'Agregar',
     feedsTitle: (active, total) => `Fuentes (${active} de ${total} activas)`,
     noFeeds: 'Aún no hay fuentes importadas.',
+    exportTitle: 'Exportar fuentes',
+    exportDesc: 'Descarga tus fuentes como OPML (compatible con cualquier lector RSS) o como respaldo JSON.',
+    exportOpml: 'Exportar OPML',
+    exportJson: 'Exportar JSON',
     removeDialog: {
       title: '¿Eliminar fuente?',
       description: (name) => `"${name}" será eliminada de tus fuentes. Esta acción no se puede deshacer.`,
