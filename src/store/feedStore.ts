@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Article, CategoryId, FeedSource, UserCategory } from '../domain/types';
 import { parseOPML } from '../services/opml';
+import { parseJSONBackup } from '../services/importJSON';
 import { aggregateFeeds } from '../services/aggregator';
 import { rankArticles } from '../services/ranking';
 import {
@@ -40,6 +41,7 @@ interface FeedState {
   setActiveCategoryId: (categoryId: CategoryId) => void;
   initFromDB: () => Promise<void>;
   importOPML: (file: File) => Promise<void>;
+  importJSONBackup: (file: File) => Promise<void>;
   addFeed: (feed: FeedSource) => Promise<void>;
   removeFeed: (feedId: string) => Promise<void>;
   updateFeedCategory: (feedId: string, categoryId: CategoryId) => Promise<void>;
@@ -129,6 +131,53 @@ export const useFeedStore = create<FeedState>((set, get) => ({
     } catch (err) {
       set({ loading: false, error: 'Failed to import OPML file.' });
       console.error('[store] importOPML error:', err);
+    }
+  },
+
+  importJSONBackup: async (file: File) => {
+    set({ loading: true, error: null });
+    try {
+      const result = await parseJSONBackup(file);
+      if (!result.ok) {
+        set({ loading: false, error: result.error });
+        return;
+      }
+
+      const { categories: importedCats, feeds: importedFeeds } = result.data;
+      const { categories: existingCats, feeds: existingFeeds } = get();
+
+      const existingCatIds = new Set(existingCats.map((c) => c.id));
+      const existingFeedIds = new Set(existingFeeds.map((f) => f.id));
+      const maxOrder = existingCats.reduce((m, c) => Math.max(m, c.order), -1);
+
+      // New categories only — preserve user's existing customisations
+      const newCats = importedCats
+        .filter((c) => !existingCatIds.has(c.id))
+        .map((c, i) => ({ ...c, order: maxOrder + 1 + i }));
+
+      const mergedCats = [...existingCats, ...newCats];
+      const mergedCatIds = new Set(mergedCats.map((c) => c.id));
+
+      // Fallback category for feeds whose categoryId didn't survive the merge
+      const fallbackCatId = mergedCats[0]?.id ?? 'custom';
+
+      // New feeds only — remap orphaned categoryIds to the fallback
+      const newFeeds = importedFeeds
+        .filter((f) => !existingFeedIds.has(f.id))
+        .map((f) => ({
+          ...f,
+          categoryId: mergedCatIds.has(f.categoryId) ? f.categoryId : fallbackCatId,
+        }));
+
+      const mergedFeeds = [...existingFeeds, ...newFeeds];
+
+      await Promise.all([saveCategories(mergedCats), saveFeeds(mergedFeeds)]);
+      set({ categories: mergedCats, feeds: mergedFeeds, loading: false });
+
+      if (newFeeds.length > 0) await get().refresh();
+    } catch (err) {
+      set({ loading: false, error: 'Failed to import JSON backup.' });
+      console.error('[store] importJSONBackup error:', err);
     }
   },
 
