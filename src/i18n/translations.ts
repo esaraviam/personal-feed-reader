@@ -75,6 +75,9 @@ export interface Translations {
     exportDesc: string;
     exportOpml: string;
     exportJson: string;
+    importJsonBtn: string;
+    importingJson: string;
+    importJsonDesc: string;
     removeDialog: {
       title: string;
       description: (name: string) => string;
@@ -239,6 +242,9 @@ const en: Translations = {
     exportDesc: 'Download your feeds as OPML (compatible with any RSS reader) or as a JSON backup.',
     exportOpml: 'Export OPML',
     exportJson: 'Export JSON',
+    importJsonBtn: 'Import JSON',
+    importingJson: 'Importing…',
+    importJsonDesc: 'Restore feeds and categories from a Daily Brief JSON backup.',
     removeDialog: {
       title: 'Remove feed?',
       description: (name) => `"${name}" will be removed from your feeds. This cannot be undone.`,
@@ -404,6 +410,9 @@ const es: Translations = {
     exportDesc: 'Descarga tus fuentes como OPML (compatible con cualquier lector RSS) o como respaldo JSON.',
     exportOpml: 'Exportar OPML',
     exportJson: 'Exportar JSON',
+    importJsonBtn: 'Importar JSON',
+    importingJson: 'Importando…',
+    importJsonDesc: 'Restaura fuentes y categorías desde un respaldo JSON de Daily Brief.',
     removeDialog: {
       title: '¿Eliminar fuente?',
       description: (name) => `"${name}" será eliminada de tus fuentes. Esta acción no se puede deshacer.`,

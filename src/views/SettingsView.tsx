@@ -33,11 +33,12 @@ import {
 type SettingsView = 'main' | 'categories';
 
 export function SettingsView() {
-  const { feeds, categories, loading, error, importOPML, toggleFeed, addFeed, removeFeed, updateFeedCategory, refresh } = useFeedStore();
+  const { feeds, categories, loading, error, importOPML, importJSONBackup, toggleFeed, addFeed, removeFeed, updateFeedCategory, refresh } = useFeedStore();
   const { t } = useTranslation();
   const { reset: resetOnboarding } = useOnboarding();
   const { exportOPML, exportJSON, hasFeeds } = useExport();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const jsonFileInputRef = useRef<HTMLInputElement>(null);
   const [view, setView] = useState<SettingsView>('main');
 
   const sortedCategories = [...categories].sort((a, b) => a.order - b.order);
@@ -68,6 +69,12 @@ export function SettingsView() {
     const file = e.target.files?.[0];
     if (file) void importOPML(file);
     if (fileInputRef.current) fileInputRef.current.value = '';
+  }
+
+  function handleJsonFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) void importJSONBackup(file);
+    if (jsonFileInputRef.current) jsonFileInputRef.current.value = '';
   }
 
   const activeCount = feeds.filter((f) => f.active).length;
@@ -114,29 +121,53 @@ export function SettingsView() {
 
       {error && <StatusBanner type="error" message={error} />}
 
-      {/* OPML Import */}
+      {/* Import Feeds */}
       <div className="p-4 border-b border-gray-100 dark:border-slate-800">
         <p className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">{t.settings.importTitle}</p>
         <p className="text-xs text-gray-400 dark:text-slate-500 mb-3">{t.settings.importDesc}</p>
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
-        >
-          {loading ? (
-            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-          ) : (
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-            </svg>
-          )}
-          {loading ? t.settings.importing : t.settings.importBtn}
-        </button>
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            {loading ? (
+              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+            )}
+            {loading ? t.settings.importing : t.settings.importBtn}
+          </button>
+          <button
+            onClick={() => jsonFileInputRef.current?.click()}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 text-slate-700 dark:text-slate-300 text-sm font-medium rounded-lg transition-colors"
+          >
+            {loading ? (
+              <div className="w-4 h-4 border-2 border-slate-300/50 border-t-slate-500 rounded-full animate-spin" />
+            ) : (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+            )}
+            {loading ? t.settings.importingJson : t.settings.importJsonBtn}
+          </button>
+        </div>
+        <p className="text-xs text-gray-400 dark:text-slate-500 mt-2">{t.settings.importJsonDesc}</p>
         <input
           ref={fileInputRef}
           type="file"
           accept=".opml,text/x-opml,application/xml,text/xml"
           onChange={handleFileChange}
+          className="hidden"
+        />
+        <input
+          ref={jsonFileInputRef}
+          type="file"
+          accept=".json,application/json"
+          onChange={handleJsonFileChange}
           className="hidden"
         />
       </div>
