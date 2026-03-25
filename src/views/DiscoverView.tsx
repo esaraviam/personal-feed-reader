@@ -324,7 +324,7 @@ interface FeedRowProps {
 }
 
 function FeedRow({
-  id, title, description, favicon, url, subscribers, tier,
+  id: _id, title, description, favicon, url, subscribers, tier,
   isAdded, isAdding, categoryId, sortedCategories,
   onCategoryChange, onAdd, t,
 }: FeedRowProps) {

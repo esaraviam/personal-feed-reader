@@ -81,7 +81,7 @@ describe('getRecommendedFeeds', () => {
 
   beforeEach(() => {
     _resetCatalogCache();
-    vi.spyOn(global, 'fetch').mockResolvedValue({
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({ version: '1', updatedAt: '2026-03-25', feeds: catalog }),
     } as Response);
@@ -122,7 +122,7 @@ describe('getRecommendedFeeds', () => {
 
   it('returns empty array when catalog fetch fails', async () => {
     _resetCatalogCache();
-    vi.spyOn(global, 'fetch').mockResolvedValue({ ok: false, status: 404 } as Response);
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: false, status: 404 } as Response);
     const results = await getRecommendedFeeds('en', new Set()).catch(() => []);
     expect(results).toHaveLength(0);
   });
