@@ -1,5 +1,6 @@
 import { useFeedStore, type TabId } from '../store/feedStore';
 import { useTranslation } from '../i18n/LanguageContext';
+import { haptics } from '../lib/haptics';
 
 export function TabBar() {
   const { activeTab, setActiveTab } = useFeedStore();
@@ -72,15 +73,30 @@ export function TabBar() {
     },
   ];
 
+  function handleTabPress(id: TabId) {
+    haptics.tap();
+    setActiveTab(id);
+  }
+
   return (
-    <nav className="flex border-t border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm">
+    /*
+     * pb-safe pushes the tab buttons above the iPhone home indicator.
+     * The background extends into the safe area visually (native pattern).
+     * py-3 gives 48px touch targets (Apple HIG minimum is 44pt).
+     */
+    <nav
+      className="flex border-t border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm pb-safe"
+      role="tablist"
+    >
       {TABS.map((tab) => {
         const isActive = activeTab === tab.id;
         return (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex flex-col items-center gap-1 py-2.5 flex-1 transition-colors ${
+            role="tab"
+            aria-selected={isActive}
+            onClick={() => handleTabPress(tab.id)}
+            className={`flex flex-col items-center gap-1 py-3 flex-1 transition-all duration-75 active:scale-90 ${
               isActive
                 ? 'text-blue-600 dark:text-blue-400'
                 : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'

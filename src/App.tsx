@@ -1,11 +1,7 @@
-import { useEffect } from 'react';
-import { useFeedStore } from './store/feedStore';
+import { lazy, Suspense, useEffect } from 'react';
+import { useFeedStore, type TabId } from './store/feedStore';
 import { TabBar } from './components/TabBar';
 import { OfflineBanner } from './components/OfflineBanner';
-import { HomeView } from './views/HomeView';
-import { FeedsView } from './views/FeedsView';
-import { SettingsView } from './views/SettingsView';
-import { DiscoverView } from './views/DiscoverView';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
 import { useTheme } from './hooks/useTheme';
 import { LanguageProvider, useTranslation } from './i18n/LanguageContext';
@@ -13,19 +9,22 @@ import type { Language } from './i18n/translations';
 import { Toaster } from 'sonner';
 import { OnboardingProvider, useOnboarding } from './contexts/OnboardingContext';
 import { OnboardingFlow } from './components/OnboardingFlow';
+import { InstallPrompt } from './components/InstallPrompt';
 
-function ActiveView() {
-  const { activeTab } = useFeedStore();
+/*
+ * Lazy-load non-initial views so the initial bundle only parses HomeView.
+ * The hidden views (opacity-0) load in the background immediately after mount —
+ * users never see a flash because they're invisible until switched to.
+ */
+const HomeView     = lazy(() => import('./views/HomeView').then(m => ({ default: m.HomeView })));
+const FeedsView    = lazy(() => import('./views/FeedsView').then(m => ({ default: m.FeedsView })));
+const DiscoverView = lazy(() => import('./views/DiscoverView').then(m => ({ default: m.DiscoverView })));
+const SettingsView = lazy(() => import('./views/SettingsView').then(m => ({ default: m.SettingsView })));
 
-  if (activeTab === 'brief') return <HomeView />;
-  if (activeTab === 'feeds') return <FeedsView />;
-  if (activeTab === 'settings') return <SettingsView />;
-  if (activeTab === 'discover') return <DiscoverView />;
-  return null;
-}
+const ALL_TABS: TabId[] = ['brief', 'feeds', 'discover', 'settings'];
 
 function AppShell() {
-  const { initFromDB, refresh, feeds } = useFeedStore();
+  const { initFromDB, refresh, feeds, activeTab } = useFeedStore();
   const isOnline = useOnlineStatus();
   const { theme, toggle: toggleTheme } = useTheme();
   const { language, setLanguage, t } = useTranslation();
@@ -49,8 +48,16 @@ function AppShell() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col transition-colors duration-200">
-      {/* App header */}
-      <header className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 px-4 py-3 flex items-center gap-2.5 sticky top-0 z-10 shadow-[0_1px_0_0_#f1f5f9] dark:shadow-[0_1px_0_0_#1e293b]">
+
+      {/*
+        App header.
+        pt-[env(safe-area-inset-top)] compensates for the black-translucent status bar
+        on iOS — without this, the header content sits under the status bar text/icons.
+      */}
+      <header
+        className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 px-4 pb-3 flex items-center gap-2.5 sticky top-0 z-10 shadow-[0_1px_0_0_#f1f5f9] dark:shadow-[0_1px_0_0_#1e293b]"
+        style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}
+      >
         <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center shadow-sm flex-shrink-0">
           <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
             <path d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" stroke="white" strokeWidth="2" strokeLinecap="round" fill="none"/>
@@ -72,7 +79,7 @@ function AppShell() {
                 key={id}
                 onClick={() => setLanguage(id)}
                 aria-label={`Switch to ${id === 'en' ? 'English' : 'Spanish'}`}
-                className={`px-2.5 py-1 text-[11px] font-semibold tracking-wide transition-colors ${
+                className={`px-2.5 py-1 text-[11px] font-semibold tracking-wide transition-colors active:scale-95 ${
                   language === id
                     ? 'bg-blue-600 text-white'
                     : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -87,7 +94,7 @@ function AppShell() {
           <button
             onClick={toggleTheme}
             aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-            className="w-8 h-8 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors active:scale-90"
           >
             {theme === 'dark' ? (
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -104,17 +111,50 @@ function AppShell() {
 
       <OfflineBanner />
 
-      <main className="flex-1 max-w-2xl w-full mx-auto pb-16">
-        <ActiveView />
+      {/*
+        Main content area.
+        All four tab views are mounted simultaneously and stacked via absolute positioning.
+        The active tab is opacity-100 + pointer-events-auto; others are opacity-0 + pointer-events-none.
+
+        Benefits vs conditional rendering:
+          - Cross-fade transition instead of instant cut (native-like)
+          - Each view has its own scroll container → scroll position preserved across tab switches
+          - No remount/unmount flash on tab switch
+      */}
+      <main className="flex-1 max-w-2xl w-full mx-auto relative overflow-hidden"
+            style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom))' }}>
+        {ALL_TABS.map((tab) => (
+          <div
+            key={tab}
+            aria-hidden={activeTab !== tab}
+            className={`absolute inset-0 overflow-y-auto transition-opacity duration-200 ${
+              activeTab === tab
+                ? 'opacity-100 pointer-events-auto'
+                : 'opacity-0 pointer-events-none'
+            }`}
+          >
+            <Suspense fallback={null}>
+              {tab === 'brief'    && <HomeView />}
+              {tab === 'feeds'    && <FeedsView />}
+              {tab === 'discover' && <DiscoverView />}
+              {tab === 'settings' && <SettingsView />}
+            </Suspense>
+          </div>
+        ))}
       </main>
 
+      {/* TabBar: pb-safe pushes content above the iPhone home indicator */}
       <div className="fixed bottom-0 left-0 right-0 max-w-2xl mx-auto z-10">
         <TabBar />
       </div>
+
       <Toaster position="top-center" richColors theme={theme} />
 
       {/* Onboarding overlay — shown only on first launch */}
       {!onboardingDone && <OnboardingFlow onComplete={completeOnboarding} />}
+
+      {/* Install prompt — Android banner + iOS guidance sheet */}
+      <InstallPrompt />
     </div>
   );
 }

@@ -2,9 +2,39 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <title>Daily Brief</title>
+    <meta name="description" content="Personal RSS reader. High-signal news in under 10 minutes." />
+
+    <!--
+      viewport-fit=cover is REQUIRED for env(safe-area-inset-*) to have any effect on iOS.
+      Without it, safe area CSS is silently ignored and the TabBar overlaps the home indicator.
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <!-- Prevents the white flash on dark-mode users before React hydrates -->
+    <meta name="color-scheme" content="light dark" />
+
+    <!-- Browser chrome / status bar color (applied immediately, before manifest loads) -->
+    <meta name="theme-color" content="#2563eb" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)" />
+
+    <!--
+      iOS standalone mode meta tags.
+      apple-mobile-web-app-capable: enables full-screen mode when launched from home screen.
+      black-translucent: status bar overlays the app content (same as native apps).
+        ⚠ Requires the app header to add pt-[env(safe-area-inset-top)] to compensate.
+    -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Daily Brief" />
+
+    <!--
+      iOS home screen icon. iOS Safari does NOT use SVG icons from the manifest.
+      It requires a PNG linked here. Without this, iOS generates a blurry screenshot icon.
+    -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.png" />
+
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>personalfeedreader</title>
   </head>
   <body>
     <div id="root"></div>

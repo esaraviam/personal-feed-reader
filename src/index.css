@@ -66,6 +66,41 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
+  /*
+   * Safe area inset utilities.
+   * These only have effect when viewport-fit=cover is set in the HTML meta viewport tag.
+   * Used to push content away from the iPhone notch, Dynamic Island, and home indicator.
+   */
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .mb-tab-safe {
+    /* Account for fixed TabBar (4rem) + home indicator */
+    margin-bottom: calc(4rem + env(safe-area-inset-bottom));
+  }
+}
+
+/*
+ * Global touch interaction improvements.
+ * touch-action: manipulation eliminates the 300ms tap delay on Android WebViews.
+ * user-select: none prevents accidental text selection on long-press of UI chrome.
+ */
+button,
+a,
+[role="button"],
+[role="tab"],
+[role="option"] {
+  touch-action: manipulation;
+}
+
+nav,
+[role="tablist"] {
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /*
