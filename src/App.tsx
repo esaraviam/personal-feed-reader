@@ -121,12 +121,19 @@ function AppShell() {
           - Each view has its own scroll container → scroll position preserved across tab switches
           - No remount/unmount flash on tab switch
       */}
-      <main className="flex-1 max-w-2xl w-full mx-auto relative overflow-hidden"
-            style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom))' }}>
+      {/*
+        The scroll clearance MUST live on each individual scroll container, not on <main>.
+        Reason: children with `absolute inset-0` are positioned relative to <main>'s padding
+        edge — they fill the full height including padding-bottom, so padding on <main>
+        never creates scroll clearance. Moving it to the overflow-y:auto containers
+        ensures the browser reserves that space at the bottom of each scrollable list.
+      */}
+      <main className="flex-1 max-w-2xl w-full mx-auto relative overflow-hidden">
         {ALL_TABS.map((tab) => (
           <div
             key={tab}
             aria-hidden={activeTab !== tab}
+            style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom))' }}
             className={`absolute inset-0 overflow-y-auto transition-opacity duration-200 ${
               activeTab === tab
                 ? 'opacity-100 pointer-events-auto'
