@@ -63,5 +63,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     globals: true,
+    // Exclude the Cloudflare Worker package — it has its own vitest config and node environment
+    exclude: ['proxy-worker/**', '**/node_modules/**'],
   },
 });
