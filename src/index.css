@@ -85,6 +85,16 @@
 }
 
 /*
+ * Prevent the browser's built-in pull-to-refresh gesture from fighting with
+ * our custom pull-to-refresh. Only applied to the html/body, not scroll containers,
+ * so internal scrolling is unaffected.
+ */
+html,
+body {
+  overscroll-behavior-y: none;
+}
+
+/*
  * Global touch interaction improvements.
  * touch-action: manipulation eliminates the 300ms tap delay on Android WebViews.
  * user-select: none prevents accidental text selection on long-press of UI chrome.
