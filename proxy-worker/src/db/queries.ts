@@ -125,6 +125,45 @@ export async function saveEmbedding(
 }
 
 /**
+ * Retrieve articles that have been inserted but not yet processed
+ * by the embedding + classification pipeline (embedding IS NULL).
+ * Limited to the dedup window to keep the batch manageable.
+ */
+export async function getUnprocessedArticles(
+  db: D1Database,
+  windowMs: number,
+): Promise<Array<{ id: string; title: string; source: string; feed_id: string; published_at: number }>> {
+  const cutoff = Date.now() - windowMs;
+  const result = await db
+    .prepare(`
+      SELECT id, title, source, feed_id, published_at
+      FROM articles
+      WHERE embedding IS NULL AND is_duplicate = 0 AND fetched_at >= ?
+      ORDER BY fetched_at ASC
+    `)
+    .bind(cutoff)
+    .all<{ id: string; title: string; source: string; feed_id: string; published_at: number }>();
+  return result.results;
+}
+
+/**
+ * Save classification results (topics, region, importance) for an article.
+ * Topics are stored as a JSON array string.
+ */
+export async function saveClassification(
+  db: D1Database,
+  articleId: string,
+  topics: string[],
+  region: string,
+  importance: number,
+): Promise<void> {
+  await db
+    .prepare('UPDATE articles SET topics = ?, region = ?, importance = ? WHERE id = ?')
+    .bind(JSON.stringify(topics), region, importance, articleId)
+    .run();
+}
+
+/**
  * Prune articles older than maxAgeMs that have not been assigned to a cluster.
  * Clustered articles are kept for digest history.
  */
