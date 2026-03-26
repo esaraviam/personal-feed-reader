@@ -34,8 +34,8 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // App shell: cache-first (JS/CSS/HTML)
-        globPatterns: ['**/*.{js,css,html,svg,woff2}'],
+        // App shell: cache-first (JS/CSS/HTML + JSON data files like recommended-feeds)
+        globPatterns: ['**/*.{js,css,html,svg,woff2,png,ico,json}'],
         runtimeCaching: [
           {
             // Self-hosted CF worker proxy: network-first, fall back to cache

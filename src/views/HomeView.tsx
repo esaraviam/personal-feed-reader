@@ -1,8 +1,11 @@
+import { useEffect, useRef } from 'react';
 import { useFeedStore } from '../store/feedStore';
 import { ArticleCard } from '../components/ArticleCard';
 import { StatusBanner } from '../components/StatusBanner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTranslation } from '../i18n/LanguageContext';
+import { usePullToRefresh } from '../hooks/usePullToRefresh';
+import { haptics } from '../lib/haptics';
 
 function formatSyncTime(ts: number, t: ReturnType<typeof useTranslation>['t']): string {
   const diffM = Math.floor((Date.now() - ts) / 60000);
@@ -15,6 +18,19 @@ export function HomeView() {
   const { loading, error, lastSync, feeds, getBriefArticles, refresh } = useFeedStore();
   const { t } = useTranslation();
   const articles = getBriefArticles();
+
+  // Pull-to-refresh: attach to the parent scroll container (managed by App.tsx)
+  const rootRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    scrollContainerRef.current = (rootRef.current?.parentElement ?? null) as HTMLElement | null;
+  }, []);
+  const { pullProgress, refreshing } = usePullToRefresh(scrollContainerRef, {
+    onRefresh: async () => {
+      haptics.success();
+      await refresh();
+    },
+  });
 
   if (loading) {
     return (
@@ -57,7 +73,22 @@ export function HomeView() {
   const activeCount = feeds.filter(f => f.active).length;
 
   return (
-    <div className="flex flex-col min-h-full bg-slate-50 dark:bg-slate-950">
+    <div ref={rootRef} className="flex flex-col min-h-full bg-slate-50 dark:bg-slate-950">
+      {/* Pull-to-refresh indicator */}
+      {(pullProgress > 0 || refreshing) && (
+        <div
+          className="flex items-center justify-center overflow-hidden transition-all duration-150"
+          style={{ height: `${(refreshing ? 1 : pullProgress) * 44}px` }}
+        >
+          <svg
+            className={`w-5 h-5 text-blue-500 transition-transform duration-300 ${refreshing ? 'animate-spin' : ''}`}
+            style={{ transform: refreshing ? undefined : `rotate(${pullProgress * 360}deg)` }}
+            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </div>
+      )}
       <div className="flex items-center justify-between px-4 pt-4 pb-3">
         <div>
           <h2 className="text-[13px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">

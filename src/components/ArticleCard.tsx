@@ -51,7 +51,7 @@ export function ArticleCard({ article, rank }: Props) {
       href={safeHref(article.link)}
       target="_blank"
       rel="noopener noreferrer"
-      className="group flex items-stretch bg-white dark:bg-slate-800/50 hover:bg-slate-50/80 dark:hover:bg-slate-800 active:bg-slate-100 dark:active:bg-slate-700 transition-colors duration-150 border-b border-slate-100 dark:border-slate-700/50 last:border-b-0"
+      className="group flex items-stretch bg-white dark:bg-slate-800/50 hover:bg-slate-50/80 dark:hover:bg-slate-800 active:bg-slate-100 dark:active:bg-slate-700 active:scale-[0.98] transition-all duration-100 border-b border-slate-100 dark:border-slate-700/50 last:border-b-0"
     >
       {/* Category accent bar */}
       <span className="w-[3px] flex-shrink-0 opacity-80" style={hexToAccentStyle(categoryColor)} />

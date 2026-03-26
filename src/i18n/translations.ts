@@ -146,6 +146,19 @@ export interface Translations {
     replayDesc: string;
   };
 
+  // Install prompt (Android banner + iOS guidance sheet)
+  install: {
+    title: string;
+    subtitle: string;
+    install: string;
+    dismiss: string;
+    iosTitle: string;
+    iosSubtitle: string;
+    iosStep1: string;
+    iosStep2: string;
+    iosStep3: string;
+  };
+
   // Common actions
   common: {
     refresh: string;
@@ -327,6 +340,17 @@ const en: Translations = {
       },
     ],
   },
+  install: {
+    title: 'Add to Home Screen',
+    subtitle: 'Install Daily Brief for quick access and offline reading.',
+    install: 'Install',
+    dismiss: 'Not now',
+    iosTitle: 'Install Daily Brief',
+    iosSubtitle: 'Add to your home screen in 3 steps',
+    iosStep1: 'Tap the Share button at the bottom of Safari.',
+    iosStep2: 'Scroll down and tap "Add to Home Screen".',
+    iosStep3: 'Tap "Add" to confirm. Done!',
+  },
   common: {
     refresh: 'Refresh',
     error: 'Something went wrong.',
@@ -500,6 +524,17 @@ const es: Translations = {
         cta: 'Empezar a leer',
       },
     ],
+  },
+  install: {
+    title: 'Agregar a inicio',
+    subtitle: 'Instala Daily Brief para acceso rápido y lectura sin conexión.',
+    install: 'Instalar',
+    dismiss: 'Ahora no',
+    iosTitle: 'Instalar Daily Brief',
+    iosSubtitle: 'Agrégala a tu pantalla de inicio en 3 pasos',
+    iosStep1: 'Toca el botón Compartir en la parte inferior de Safari.',
+    iosStep2: 'Desplázate y toca "Agregar a inicio".',
+    iosStep3: 'Toca "Agregar" para confirmar. ¡Listo!',
   },
   common: {
     refresh: 'Actualizar',
