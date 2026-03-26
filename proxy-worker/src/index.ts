@@ -13,6 +13,7 @@
 import type { WorkerEnv } from './types';
 import { handleScheduled } from './handlers/cron';
 import { handleFeedSync } from './handlers/feedSync';
+import { handleDigest } from './handlers/digest';
 
 export default {
   async fetch(request: Request, env: WorkerEnv, ctx: ExecutionContext): Promise<Response> {
@@ -33,15 +34,8 @@ export default {
     }
 
     // ── Route: GET /digest ──────────────────────────────────────────────────
-    // Phase 3 — placeholder returns empty digest so the PWA can test integration
     if (url.pathname === '/digest' && request.method === 'GET') {
-      return new Response(
-        JSON.stringify({ generatedAt: Date.now(), date: todayISO(), clusters: [] }),
-        {
-          status: 200,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders(allowedOrigin) },
-        },
-      );
+      return handleDigest(request, env, allowedOrigin);
     }
 
     // ── Route: GET /?url=  (CORS proxy — original, unchanged) ──────────────
@@ -141,9 +135,6 @@ export default {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 function corsHeaders(allowedOrigin: string): Record<string, string> {
   return {
