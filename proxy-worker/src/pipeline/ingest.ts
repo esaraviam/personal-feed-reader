@@ -7,7 +7,19 @@
  */
 import { XMLParser } from 'fast-xml-parser';
 import type { WorkerEnv, NormalizedArticle, FeedRecord } from '../types';
-import { getActiveFeeds, insertArticles, pruneOldArticles } from '../db/queries';
+import {
+  getActiveFeeds,
+  insertArticles,
+  pruneOldArticles,
+  getUnprocessedArticles,
+  getRecentArticles,
+  saveEmbedding,
+  markAsDuplicate,
+  saveClassification,
+} from '../db/queries';
+import { generateEmbeddings } from './embed';
+import { isDuplicate, DEDUP_WINDOW_MS } from './dedup';
+import { classifyArticle } from './classify';
 
 const FETCH_TIMEOUT_MS = 15_000;
 const CONCURRENCY = 3;
@@ -222,10 +234,79 @@ export async function runIngestion(env: WorkerEnv): Promise<void> {
   const inserted = await insertArticles(env.DB, articles);
   console.log(`[ingest] Cycle complete. Fetched ${articles.length} articles, inserted ${inserted} new.`);
 
+  // ── Phase 2: embed → dedup → classify ────────────────────────────────────
+  await runEnrichmentPipeline(env, feeds);
+
   const pruned = await pruneOldArticles(env.DB, PRUNE_AFTER_MS);
   if (pruned > 0) {
     console.log(`[ingest] Pruned ${pruned} articles older than 7 days.`);
   }
+}
+
+/**
+ * Enrichment pipeline — runs after every ingestion cycle.
+ *
+ * For each article that has been inserted but not yet processed:
+ * 1. Generate embeddings (batch AI call)
+ * 2. Check against existing corpus for semantic duplicates
+ * 3. If not a duplicate: save embedding + run rule-based classification
+ * 4. If duplicate: mark as such and skip
+ */
+async function runEnrichmentPipeline(env: WorkerEnv, feeds: FeedRecord[]): Promise<void> {
+  const unprocessed = await getUnprocessedArticles(env.DB, DEDUP_WINDOW_MS);
+  if (unprocessed.length === 0) return;
+
+  console.log(`[enrich] Processing ${unprocessed.length} unprocessed articles.`);
+
+  // Generate embeddings in one batched AI call
+  let embeddings: number[][];
+  try {
+    embeddings = await generateEmbeddings(env, unprocessed.map((a) => a.title));
+  } catch (err) {
+    console.error('[enrich] Embedding generation failed — skipping enrichment:', err);
+    return;
+  }
+
+  // Build dedup corpus from already-processed articles in the window
+  const processed = await getRecentArticles(env.DB, DEDUP_WINDOW_MS);
+  const corpus: number[][] = processed
+    .filter((a) => a.embedding !== null)
+    .map((a) => JSON.parse(a.embedding!) as number[]);
+
+  const feedMap = new Map(feeds.map((f) => [f.id, f]));
+  let dupCount = 0;
+  let enrichedCount = 0;
+
+  for (let i = 0; i < unprocessed.length; i++) {
+    const article = unprocessed[i];
+    const embedding = embeddings[i];
+    if (!embedding) continue;
+
+    if (isDuplicate(embedding, corpus)) {
+      await markAsDuplicate(env.DB, article.id);
+      dupCount++;
+    } else {
+      // Add to corpus so subsequent articles in this batch are checked against it
+      corpus.push(embedding);
+      await saveEmbedding(env.DB, article.id, embedding);
+
+      const feed = feedMap.get(article.feed_id);
+      const priority = feed?.priority ?? 1;
+      const ageMs = Date.now() - article.published_at;
+      const { topics, region, importance } = classifyArticle(
+        article.title,
+        article.source,
+        priority,
+        ageMs,
+      );
+      await saveClassification(env.DB, article.id, topics, region, importance);
+      enrichedCount++;
+    }
+  }
+
+  console.log(
+    `[enrich] Done. Enriched: ${enrichedCount}, Duplicates: ${dupCount}.`,
+  );
 }
 
 // ── Exported pure helpers (for unit testing) ─────────────────────────────────
