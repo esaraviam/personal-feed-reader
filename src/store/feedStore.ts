@@ -15,7 +15,7 @@ import {
   saveCategories,
 } from '../services/db';
 
-export type TabId = 'brief' | 'feeds' | 'discover' | 'settings';
+export type TabId = 'brief' | 'digest' | 'feeds' | 'discover' | 'settings';
 
 interface FeedState {
   // Data

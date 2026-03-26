@@ -17,11 +17,12 @@ import { InstallPrompt } from './components/InstallPrompt';
  * users never see a flash because they're invisible until switched to.
  */
 const HomeView     = lazy(() => import('./views/HomeView').then(m => ({ default: m.HomeView })));
+const DigestView   = lazy(() => import('./views/DigestView').then(m => ({ default: m.DigestView })));
 const FeedsView    = lazy(() => import('./views/FeedsView').then(m => ({ default: m.FeedsView })));
 const DiscoverView = lazy(() => import('./views/DiscoverView').then(m => ({ default: m.DiscoverView })));
 const SettingsView = lazy(() => import('./views/SettingsView').then(m => ({ default: m.SettingsView })));
 
-const ALL_TABS: TabId[] = ['brief', 'feeds', 'discover', 'settings'];
+const ALL_TABS: TabId[] = ['brief', 'digest', 'feeds', 'discover', 'settings'];
 
 function AppShell() {
   const { initFromDB, refresh, feeds, activeTab } = useFeedStore();
@@ -142,6 +143,7 @@ function AppShell() {
           >
             <Suspense fallback={null}>
               {tab === 'brief'    && <HomeView />}
+              {tab === 'digest'   && <DigestView />}
               {tab === 'feeds'    && <FeedsView />}
               {tab === 'discover' && <DiscoverView />}
               {tab === 'settings' && <SettingsView />}
