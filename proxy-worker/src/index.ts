@@ -1,58 +1,26 @@
 /**
- * Daily Brief — CORS Proxy Worker
+ * Daily Brief — Worker
  *
- * Fetches RSS/Atom feeds on behalf of the browser and adds CORS headers.
- * Security hardened: SSRF protection, origin allowlist, auth enforcement.
+ * Serves two purposes:
+ *   1. CORS Proxy  — GET /?url=<rss-feed-url>   (original, unchanged)
+ *   2. Feed Sync   — POST /feeds/sync            (Phase 1: sync PWA feed list to D1)
+ *   3. Digest      — GET /digest                 (Phase 3: serve pre-built AI digest)
+ *
+ * Scheduled jobs (cron):
+ *   every 30 min   — RSS ingestion pipeline
+ *   daily at 06:00 — Daily digest build
  */
-
-export interface Env {
-  /** Required: comma-separated allowed origins, e.g. "https://personal-feed-reader.vercel.app" */
-  ALLOWED_ORIGIN?: string;
-  /** Optional: shared secret; if set, ALL requests must supply it */
-  AUTH_KEY?: string;
-}
-
-const CACHE_TTL = 300; // 5 minutes
-
-/**
- * Block SSRF targets — private IPs, loopback, link-local, and cloud metadata endpoints.
- * A Cloudflare Worker has limited internal network access, but defense-in-depth matters.
- */
-function isBlockedHost(url: URL): boolean {
-  const h = url.hostname.toLowerCase();
-
-  // Cloud metadata endpoints
-  if (h === 'metadata.google.internal') return true;
-  if (h === '169.254.169.254') return true; // AWS/Azure/GCP IMDS
-
-  // Loopback
-  if (h === 'localhost') return true;
-  if (h === '::1') return true;
-
-  // Numeric IP checks — parse dotted-decimal
-  const parts = h.split('.').map(Number);
-  if (parts.length === 4 && parts.every((n) => !isNaN(n) && n >= 0 && n <= 255)) {
-    const [a, b] = parts;
-    if (a === 127) return true;                          // 127.0.0.0/8 loopback
-    if (a === 10) return true;                           // 10.0.0.0/8 private
-    if (a === 172 && b >= 16 && b <= 31) return true;   // 172.16.0.0/12 private
-    if (a === 192 && b === 168) return true;             // 192.168.0.0/16 private
-    if (a === 169 && b === 254) return true;             // 169.254.0.0/16 link-local
-    if (a === 0) return true;                            // 0.0.0.0/8 "this" network
-    if (a === 100 && b >= 64 && b <= 127) return true;  // 100.64.0.0/10 CGNAT
-  }
-
-  // IPv6 private/link-local prefixes
-  if (h.startsWith('fc00:') || h.startsWith('fd') || h.startsWith('fe80:')) return true;
-
-  return false;
-}
+import type { WorkerEnv } from './types';
+import { handleScheduled } from './handlers/cron';
+import { handleFeedSync } from './handlers/feedSync';
+import { handleDigest } from './handlers/digest';
 
 export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  async fetch(request: Request, env: WorkerEnv, ctx: ExecutionContext): Promise<Response> {
+    const url = new URL(request.url);
     const allowedOrigin = env.ALLOWED_ORIGIN ?? '*';
 
-    // CORS preflight
+    // CORS preflight — applies to all routes
     if (request.method === 'OPTIONS') {
       return new Response(null, {
         status: 204,
@@ -60,36 +28,45 @@ export default {
       });
     }
 
+    // ── Route: POST /feeds/sync ─────────────────────────────────────────────
+    if (url.pathname === '/feeds/sync') {
+      return handleFeedSync(request, env, allowedOrigin);
+    }
+
+    // ── Route: GET /digest ──────────────────────────────────────────────────
+    if (url.pathname === '/digest' && request.method === 'GET') {
+      return handleDigest(request, env, allowedOrigin);
+    }
+
+    // ── Route: GET /?url=  (CORS proxy — original, unchanged) ──────────────
     if (request.method !== 'GET') {
       return errorResponse('Method not allowed', 405, allowedOrigin);
     }
 
-    // Enforce origin allowlist when configured (preferred over AUTH_KEY for browser clients)
+    // Enforce origin allowlist
     if (env.ALLOWED_ORIGIN && env.ALLOWED_ORIGIN !== '*') {
       const origin = request.headers.get('Origin') ?? '';
       const allowed = env.ALLOWED_ORIGIN.split(',').map((s) => s.trim());
-      // Non-browser tools won't send Origin; we only block if Origin is present and wrong
       if (origin && !allowed.includes(origin)) {
         return errorResponse('Forbidden origin', 403, allowedOrigin);
       }
     }
 
-    // Auth key check (optional but enforced if set)
+    // Auth key check
     if (env.AUTH_KEY) {
       const key =
         request.headers.get('X-Proxy-Key') ??
-        new URL(request.url).searchParams.get('key');
+        url.searchParams.get('key');
       if (key !== env.AUTH_KEY) {
         return errorResponse('Unauthorized', 401, allowedOrigin);
       }
     }
 
-    const targetUrl = new URL(request.url).searchParams.get('url');
+    const targetUrl = url.searchParams.get('url');
     if (!targetUrl) {
       return errorResponse('Missing ?url= parameter', 400, allowedOrigin);
     }
 
-    // Validate and parse target URL
     let parsed: URL;
     try {
       parsed = new URL(targetUrl);
@@ -97,17 +74,15 @@ export default {
       return errorResponse('Invalid URL', 400, allowedOrigin);
     }
 
-    // Only allow http/https
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
       return errorResponse('Only http/https URLs allowed', 400, allowedOrigin);
     }
 
-    // SSRF protection — block private/internal hosts
     if (isBlockedHost(parsed)) {
       return errorResponse('Target host not allowed', 403, allowedOrigin);
     }
 
-    // Check Cloudflare cache
+    // CF cache
     const cacheKey = new Request(targetUrl, { method: 'GET' });
     const cache = caches.default;
     const cached = await cache.match(cacheKey);
@@ -117,7 +92,6 @@ export default {
       return addCors(resp, allowedOrigin);
     }
 
-    // Fetch upstream
     let upstream: Response;
     try {
       upstream = await fetch(targetUrl, {
@@ -143,24 +117,30 @@ export default {
       status: 200,
       headers: {
         'Content-Type': contentType,
-        'Cache-Control': `public, max-age=${CACHE_TTL}`,
+        'Cache-Control': `public, max-age=300`,
         'X-Proxy-Cache': 'MISS',
         ...corsHeaders(allowedOrigin),
       },
     });
 
-    // Store in CF cache (non-blocking)
     ctx.waitUntil(cache.put(cacheKey, response.clone()));
-
     return response;
   },
+
+  // ── Scheduled handler ─────────────────────────────────────────────────────
+  async scheduled(event: ScheduledEvent, env: WorkerEnv, ctx: ExecutionContext): Promise<void> {
+    return handleScheduled(event, env, ctx);
+  },
 };
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 function corsHeaders(allowedOrigin: string): Record<string, string> {
   return {
     'Access-Control-Allow-Origin': allowedOrigin,
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'X-Proxy-Key',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Proxy-Key',
     'Vary': 'Origin',
   };
 }
@@ -176,4 +156,25 @@ function errorResponse(message: string, status: number, allowedOrigin: string): 
     status,
     headers: { 'Content-Type': 'text/plain', ...corsHeaders(allowedOrigin) },
   });
+}
+
+function isBlockedHost(url: URL): boolean {
+  const h = url.hostname.toLowerCase();
+  if (h === 'metadata.google.internal') return true;
+  if (h === '169.254.169.254') return true;
+  if (h === 'localhost') return true;
+  if (h === '::1') return true;
+  const parts = h.split('.').map(Number);
+  if (parts.length === 4 && parts.every((n) => !isNaN(n) && n >= 0 && n <= 255)) {
+    const [a, b] = parts;
+    if (a === 127) return true;
+    if (a === 10) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 169 && b === 254) return true;
+    if (a === 0) return true;
+    if (a === 100 && b >= 64 && b <= 127) return true;
+  }
+  if (h.startsWith('fc00:') || h.startsWith('fd') || h.startsWith('fe80:')) return true;
+  return false;
 }

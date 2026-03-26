@@ -4,6 +4,7 @@ export interface Translations {
   // Navigation
   nav: {
     brief: string;
+    digest: string;
     feeds: string;
     discover: string;
     settings: string;
@@ -159,6 +160,21 @@ export interface Translations {
     iosStep3: string;
   };
 
+  // Digest view
+  digest: {
+    title: string;
+    updatedAt: (time: string) => string;
+    stories: (n: number) => string;
+    unnamedCluster: string;
+    showMore: (n: number) => string;
+    showLess: string;
+    emptyTitle: string;
+    emptyBody: string;
+    errorTitle: string;
+    retry: string;
+    fallbackNotice: string;
+  };
+
   // Common actions
   common: {
     refresh: string;
@@ -198,6 +214,7 @@ export interface Translations {
 const en: Translations = {
   nav: {
     brief: 'Brief',
+    digest: 'Digest',
     feeds: 'Feeds',
     discover: 'Discover',
     settings: 'Settings',
@@ -351,6 +368,19 @@ const en: Translations = {
     iosStep2: 'Scroll down and tap "Add to Home Screen".',
     iosStep3: 'Tap "Add" to confirm. Done!',
   },
+  digest: {
+    title: 'Daily Digest',
+    updatedAt: (time) => `Updated ${time}`,
+    stories: (n) => `${n} ${n === 1 ? 'story' : 'stories'}`,
+    unnamedCluster: 'Cluster',
+    showMore: (n) => `Show ${n} more`,
+    showLess: 'Show less',
+    emptyTitle: 'Digest not ready yet',
+    emptyBody: 'The AI digest builds daily at 06:00 UTC. Check back shortly, or refresh to trigger a build.',
+    errorTitle: 'Could not load digest',
+    retry: 'Try again',
+    fallbackNotice: 'AI digest is unavailable (Worker not configured). Showing your top ranked articles instead.',
+  },
   common: {
     refresh: 'Refresh',
     error: 'Something went wrong.',
@@ -383,6 +413,7 @@ const en: Translations = {
 const es: Translations = {
   nav: {
     brief: 'Resumen',
+    digest: 'Digest',
     feeds: 'Fuentes',
     discover: 'Explorar',
     settings: 'Ajustes',
@@ -535,6 +566,19 @@ const es: Translations = {
     iosStep1: 'Toca el botón Compartir en la parte inferior de Safari.',
     iosStep2: 'Desplázate y toca "Agregar a inicio".',
     iosStep3: 'Toca "Agregar" para confirmar. ¡Listo!',
+  },
+  digest: {
+    title: 'Resumen diario',
+    updatedAt: (time) => `Actualizado ${time}`,
+    stories: (n) => `${n} ${n === 1 ? 'noticia' : 'noticias'}`,
+    unnamedCluster: 'Grupo',
+    showMore: (n) => `Ver ${n} más`,
+    showLess: 'Ver menos',
+    emptyTitle: 'Resumen no disponible aún',
+    emptyBody: 'El resumen AI se genera diariamente a las 06:00 UTC. Vuelve pronto o actualiza para generarlo.',
+    errorTitle: 'No se pudo cargar el resumen',
+    retry: 'Intentar de nuevo',
+    fallbackNotice: 'El resumen AI no está disponible (Worker no configurado). Mostrando tus artículos mejor rankeados.',
   },
   common: {
     refresh: 'Actualizar',
