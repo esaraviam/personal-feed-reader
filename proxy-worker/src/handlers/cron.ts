@@ -1,5 +1,6 @@
 import type { WorkerEnv } from '../types';
 import { runIngestion } from '../pipeline/ingest';
+import { buildDailyDigest } from '../pipeline/buildDigest';
 
 const INGEST_CRON  = '*/30 * * * *';
 const DIGEST_CRON  = '0 6 * * *';
@@ -29,8 +30,11 @@ export async function handleScheduled(
   }
 
   if (event.cron === DIGEST_CRON) {
-    // Phase 3: daily digest build — not yet implemented
-    console.log('[cron] Daily digest build — scheduled for Phase 3.');
+    ctx.waitUntil(
+      buildDailyDigest(env).catch((err) =>
+        console.error('[cron] Digest build failed:', err),
+      ),
+    );
     return;
   }
 

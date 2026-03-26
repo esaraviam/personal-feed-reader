@@ -163,6 +163,131 @@ export async function saveClassification(
     .run();
 }
 
+// ── Phase 3: Clustering + Digest ──────────────────────────────────────────────
+
+/**
+ * Load all classified, non-duplicate articles within the dedup window.
+ * These are the candidates for today's digest clustering pass.
+ */
+export async function getClassifiedArticles(
+  db: D1Database,
+  windowMs: number,
+): Promise<Array<{
+  id: string;
+  title: string;
+  link: string;
+  source: string;
+  published_at: number;
+  embedding: string;
+  topics: string | null;
+  region: string | null;
+  importance: number | null;
+}>> {
+  const cutoff = Date.now() - windowMs;
+  const result = await db
+    .prepare(`
+      SELECT id, title, link, source, published_at, embedding, topics, region, importance
+      FROM articles
+      WHERE embedding IS NOT NULL
+        AND is_duplicate = 0
+        AND fetched_at >= ?
+      ORDER BY importance DESC
+    `)
+    .bind(cutoff)
+    .all<{
+      id: string;
+      title: string;
+      link: string;
+      source: string;
+      published_at: number;
+      embedding: string;
+      topics: string | null;
+      region: string | null;
+      importance: number | null;
+    }>();
+  return result.results;
+}
+
+/**
+ * Batch-upsert cluster records.
+ */
+export async function saveClusters(
+  db: D1Database,
+  clusters: Array<{
+    id: string;
+    topic: string;
+    region: string;
+    articleIds: string[];
+    createdAt: number;
+    updatedAt: number;
+  }>,
+): Promise<void> {
+  if (clusters.length === 0) return;
+  const stmt = db.prepare(`
+    INSERT INTO clusters (id, topic, region, article_ids, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      topic       = excluded.topic,
+      region      = excluded.region,
+      article_ids = excluded.article_ids,
+      updated_at  = excluded.updated_at
+  `);
+  await db.batch(
+    clusters.map((c) =>
+      stmt.bind(c.id, c.topic, c.region, JSON.stringify(c.articleIds), c.createdAt, c.updatedAt),
+    ),
+  );
+}
+
+/**
+ * Assign a list of articles to a cluster.
+ */
+export async function assignArticleCluster(
+  db: D1Database,
+  articleIds: string[],
+  clusterId: string,
+): Promise<void> {
+  if (articleIds.length === 0) return;
+  const stmt = db.prepare('UPDATE articles SET cluster_id = ?, score = importance WHERE id = ?');
+  await db.batch(articleIds.map((id) => stmt.bind(clusterId, id)));
+}
+
+/**
+ * Retrieve the cached digest for a given date (YYYY-MM-DD).
+ * Returns null if no digest exists for that date.
+ */
+export async function getDigest(
+  db: D1Database,
+  date: string,
+): Promise<{ generated_at: number; payload: string } | null> {
+  const result = await db
+    .prepare('SELECT generated_at, payload FROM digests WHERE id = ?')
+    .bind(date)
+    .first<{ generated_at: number; payload: string }>();
+  return result ?? null;
+}
+
+/**
+ * Upsert a daily digest payload.
+ */
+export async function saveDigest(
+  db: D1Database,
+  date: string,
+  generatedAt: number,
+  payload: string,
+): Promise<void> {
+  await db
+    .prepare(`
+      INSERT INTO digests (id, generated_at, payload)
+      VALUES (?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        generated_at = excluded.generated_at,
+        payload      = excluded.payload
+    `)
+    .bind(date, generatedAt, payload)
+    .run();
+}
+
 /**
  * Prune articles older than maxAgeMs that have not been assigned to a cluster.
  * Clustered articles are kept for digest history.
