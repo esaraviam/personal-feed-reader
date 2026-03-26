@@ -165,6 +165,69 @@ export async function saveClassification(
 
 // ── Phase 3: Clustering + Digest ──────────────────────────────────────────────
 
+// ── Phase 4: LLM Summarization ────────────────────────────────────────────────
+
+/**
+ * Retrieve existing cluster records by ID.
+ * Used to detect unchanged clusters (via article_hash) so we can skip re-summarization.
+ */
+export async function getExistingClusters(
+  db: D1Database,
+  clusterIds: string[],
+): Promise<Array<{
+  id: string;
+  article_hash: string | null;
+  headline: string | null;
+  insights: string | null;
+  impact: string | null;
+}>> {
+  if (clusterIds.length === 0) return [];
+  const placeholders = clusterIds.map(() => '?').join(', ');
+  const result = await db
+    .prepare(
+      `SELECT id, article_hash, headline, insights, impact FROM clusters WHERE id IN (${placeholders})`,
+    )
+    .bind(...clusterIds)
+    .all<{
+      id: string;
+      article_hash: string | null;
+      headline: string | null;
+      insights: string | null;
+      impact: string | null;
+    }>();
+  return result.results;
+}
+
+/**
+ * Persist LLM-generated summary fields for a cluster.
+ */
+export async function updateClusterSummary(
+  db: D1Database,
+  clusterId: string,
+  articleHash: string,
+  headline: string | null,
+  insights: string[] | null,
+  impact: string | null,
+): Promise<void> {
+  await db
+    .prepare(`
+      UPDATE clusters
+      SET article_hash = ?,
+          headline     = ?,
+          insights     = ?,
+          impact       = ?
+      WHERE id = ?
+    `)
+    .bind(
+      articleHash,
+      headline,
+      insights ? JSON.stringify(insights) : null,
+      impact,
+      clusterId,
+    )
+    .run();
+}
+
 /**
  * Load all classified, non-duplicate articles within the dedup window.
  * These are the candidates for today's digest clustering pass.
