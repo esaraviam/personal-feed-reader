@@ -30,7 +30,7 @@ export default {
 
     // ── Route: POST /feeds/sync ─────────────────────────────────────────────
     if (url.pathname === '/feeds/sync') {
-      return handleFeedSync(request, env, allowedOrigin);
+      return handleFeedSync(request, env, ctx, allowedOrigin);
     }
 
     // ── Route: GET /digest ──────────────────────────────────────────────────

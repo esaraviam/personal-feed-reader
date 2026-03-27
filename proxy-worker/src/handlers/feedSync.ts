@@ -1,5 +1,7 @@
 import type { WorkerEnv, FeedRecord } from '../types';
 import { upsertFeeds } from '../db/queries';
+import { runIngestion } from '../pipeline/ingest';
+import type { ExecutionContext } from '@cloudflare/workers-types';
 
 /**
  * POST /feeds/sync
@@ -26,6 +28,7 @@ interface FeedSyncItem {
 export async function handleFeedSync(
   request: Request,
   env: WorkerEnv,
+  ctx: ExecutionContext,
   allowedOrigin: string,
 ): Promise<Response> {
   if (request.method !== 'POST') {
@@ -72,6 +75,14 @@ export async function handleFeedSync(
   }
 
   await upsertFeeds(env.DB, feeds);
+
+  // Kick off ingestion immediately in the background so articles are available
+  // right away instead of waiting up to 30 minutes for the next cron run.
+  ctx.waitUntil(
+    runIngestion(env).catch((err) =>
+      console.error('[sync] Background ingestion failed:', (err as Error).message),
+    ),
+  );
 
   return new Response(JSON.stringify({ ok: true, synced: feeds.length }), {
     status: 200,
