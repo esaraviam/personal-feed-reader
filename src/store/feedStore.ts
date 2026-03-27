@@ -14,6 +14,7 @@ import {
   loadCategories,
   saveCategories,
 } from '../services/db';
+import { syncFeedsToWorker } from '../services/digestService';
 
 export type TabId = 'brief' | 'digest' | 'feeds' | 'discover' | 'settings';
 
@@ -106,6 +107,8 @@ export const useFeedStore = create<FeedState>((set, get) => ({
         loadCategories(),
       ]);
       set({ feeds, articles, lastSync, categories, loading: false });
+      // Sync feed list to Worker on startup so the pipeline always has current URLs
+      void syncFeedsToWorker(feeds);
     } catch (err) {
       set({ loading: false, error: 'Failed to load saved data.' });
       console.error('[store] initFromDB error:', err);
@@ -126,6 +129,7 @@ export const useFeedStore = create<FeedState>((set, get) => ({
 
       await saveFeeds(merged);
       set({ feeds: merged, loading: false });
+      void syncFeedsToWorker(merged);
 
       await get().refresh();
     } catch (err) {
@@ -173,6 +177,7 @@ export const useFeedStore = create<FeedState>((set, get) => ({
 
       await Promise.all([saveCategories(mergedCats), saveFeeds(mergedFeeds)]);
       set({ categories: mergedCats, feeds: mergedFeeds, loading: false });
+      void syncFeedsToWorker(mergedFeeds);
 
       if (newFeeds.length > 0) await get().refresh();
     } catch (err) {
@@ -187,6 +192,7 @@ export const useFeedStore = create<FeedState>((set, get) => ({
     const feeds = [...existing, feed];
     await saveFeeds(feeds);
     set({ feeds });
+    void syncFeedsToWorker(feeds);
     await get().refresh();
   },
 
@@ -194,12 +200,14 @@ export const useFeedStore = create<FeedState>((set, get) => ({
     const feeds = get().feeds.filter((f) => f.id !== feedId);
     await saveFeeds(feeds);
     set({ feeds });
+    void syncFeedsToWorker(feeds);
   },
 
   updateFeedCategory: async (feedId: string, categoryId: CategoryId) => {
     const feeds = get().feeds.map((f) => f.id === feedId ? { ...f, categoryId } : f);
     await saveFeeds(feeds);
     set({ feeds });
+    void syncFeedsToWorker(feeds);
   },
 
   toggleFeed: async (feedId: string) => {
@@ -208,6 +216,7 @@ export const useFeedStore = create<FeedState>((set, get) => ({
     );
     set({ feeds });
     await saveFeeds(feeds);
+    void syncFeedsToWorker(feeds);
   },
 
   refresh: async () => {

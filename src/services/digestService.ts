@@ -50,4 +50,34 @@ export function invalidateDigestCache(): void {
   sessionStorage.removeItem(todayKey());
 }
 
+// ── Feed sync ─────────────────────────────────────────────────────────────────
+
+interface FeedSyncItem {
+  id: string;
+  name: string;
+  url: string;
+  categoryId: string;
+  active: boolean;
+  priority: number;
+}
+
+/**
+ * Push the current feed list to the Worker's D1 database.
+ * Fire-and-forget — failures are logged but never surface to the user.
+ * Called after any feed mutation so the ingestion pipeline stays in sync.
+ */
+export async function syncFeedsToWorker(feeds: FeedSyncItem[]): Promise<void> {
+  if (!WORKER_URL) return;
+  try {
+    const res = await fetch(`${WORKER_URL}/feeds/sync`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(feeds),
+    });
+    if (!res.ok) console.warn(`[digest] /feeds/sync returned HTTP ${res.status}`);
+  } catch (err) {
+    console.warn('[digest] /feeds/sync failed:', (err as Error).message);
+  }
+}
+
 export { WORKER_URL };
