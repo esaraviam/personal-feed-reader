@@ -44,10 +44,10 @@ export async function buildDailyDigest(env: WorkerEnv): Promise<DigestResponse> 
   const rows = await getClassifiedArticles(env.DB, DEDUP_WINDOW_MS);
 
   if (rows.length === 0) {
-    console.log('[digest] No classified articles — returning empty digest.');
-    const empty: DigestResponse = { generatedAt: now, date, clusters: [] };
-    await saveDigest(env.DB, date, now, JSON.stringify(empty));
-    return empty;
+    console.log('[digest] No classified articles — returning empty digest (not cached).');
+    // Do NOT cache empty results — the next GET /digest should retry immediately
+    // rather than serving a stale empty response for up to 12 hours.
+    return { generatedAt: now, date, clusters: [] };
   }
 
   // ── 2. Parse stored JSON fields ───────────────────────────────────────────

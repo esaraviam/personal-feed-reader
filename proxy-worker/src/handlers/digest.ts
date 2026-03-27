@@ -33,9 +33,16 @@ export async function handleDigest(
   const now = Date.now();
   const date = new Date(now).toISOString().slice(0, 10);
 
-  // ── Serve from cache if fresh ──────────────────────────────────────────────
+  // ── Serve from cache if fresh and non-empty ───────────────────────────────
   const cached = await getDigest(env.DB, date);
-  if (cached && now - cached.generated_at < CACHE_MAX_AGE_MS) {
+  const parsedCache = cached ? (JSON.parse(cached.payload) as { clusters: unknown[] }) : null;
+  const cacheIsUsable =
+    cached &&
+    now - cached.generated_at < CACHE_MAX_AGE_MS &&
+    parsedCache !== null &&
+    parsedCache.clusters.length > 0;
+
+  if (cacheIsUsable) {
     return new Response(cached.payload, {
       status: 200,
       headers: {

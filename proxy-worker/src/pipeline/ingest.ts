@@ -20,6 +20,7 @@ import {
 import { generateEmbeddings } from './embed';
 import { isDuplicate, DEDUP_WINDOW_MS } from './dedup';
 import { classifyArticle } from './classify';
+import { buildDailyDigest } from './buildDigest';
 
 const FETCH_TIMEOUT_MS = 15_000;
 const CONCURRENCY = 3;
@@ -240,6 +241,16 @@ export async function runIngestion(env: WorkerEnv): Promise<void> {
   const pruned = await pruneOldArticles(env.DB, PRUNE_AFTER_MS);
   if (pruned > 0) {
     console.log(`[ingest] Pruned ${pruned} articles older than 7 days.`);
+  }
+
+  // ── Phase 3–4: rebuild digest after every ingestion cycle ─────────────────
+  // Invalidate the cached digest so it's rebuilt with newly enriched articles.
+  // This runs inside ctx.waitUntil so it never blocks the HTTP response.
+  try {
+    await buildDailyDigest(env);
+    console.log('[ingest] Digest rebuilt after ingestion cycle.');
+  } catch (err) {
+    console.error('[ingest] Digest rebuild failed (non-fatal):', (err as Error).message);
   }
 }
 
