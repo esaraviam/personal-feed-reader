@@ -22,7 +22,7 @@ const FeedsView    = lazy(() => import('./views/FeedsView').then(m => ({ default
 const DiscoverView = lazy(() => import('./views/DiscoverView').then(m => ({ default: m.DiscoverView })));
 const SettingsView = lazy(() => import('./views/SettingsView').then(m => ({ default: m.SettingsView })));
 
-const ALL_TABS: TabId[] = ['brief', 'digest', 'feeds', 'discover', 'settings'];
+const ALL_TABS: TabId[] = ['brief', 'feeds', 'discover', 'settings'];
 
 function AppShell() {
   const { initFromDB, refresh, feeds, activeTab } = useFeedStore();
