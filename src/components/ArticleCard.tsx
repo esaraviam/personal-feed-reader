@@ -1,6 +1,7 @@
 import type { Article } from '../domain/types';
 import { useTranslation } from '../i18n/LanguageContext';
 import { useFeedStore } from '../store/feedStore';
+import { ShareButton } from './ShareButton';
 
 /** Convert a hex color to a Tailwind-compatible inline style accent */
 function hexToAccentStyle(hex: string): { backgroundColor: string } {
@@ -80,12 +81,15 @@ export function ArticleCard({ article, rank }: Props) {
           </p>
         </div>
 
-        <svg
-          className="flex-shrink-0 w-3.5 h-3.5 text-slate-300 dark:text-slate-600 group-hover:text-slate-400 dark:group-hover:text-slate-500 mt-1 transition-colors"
-          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-        </svg>
+        <div className="flex items-center gap-1 mt-0.5">
+          <ShareButton title={article.title} url={article.link} size="sm" />
+          <svg
+            className="flex-shrink-0 w-3.5 h-3.5 text-slate-300 dark:text-slate-600 group-hover:text-slate-400 dark:group-hover:text-slate-500 transition-colors"
+            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
       </div>
     </a>
   );

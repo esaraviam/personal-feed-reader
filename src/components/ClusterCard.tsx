@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { DigestCluster } from '../domain/digestTypes';
 import { useTranslation } from '../i18n/LanguageContext';
+import { ShareButton } from './ShareButton';
 
 // ── Topic color palette ────────────────────────────────────────────────────────
 
@@ -74,9 +75,18 @@ export function ClusterCard({ cluster }: Props) {
               {cluster.region}
             </span>
           )}
-          <span className="ml-auto text-[11px] text-slate-400 dark:text-slate-500 tabular-nums">
-            {t.digest.stories(cluster.clusterSize)}
-          </span>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-[11px] text-slate-400 dark:text-slate-500 tabular-nums">
+              {t.digest.stories(cluster.clusterSize)}
+            </span>
+            {cluster.articles[0] && (
+              <ShareButton
+                title={cluster.headline ?? cluster.articles[0].title}
+                url={cluster.articles[0].link}
+                size="md"
+              />
+            )}
+          </div>
         </div>
 
         {/* Headline */}

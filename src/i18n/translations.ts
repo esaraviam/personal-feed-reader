@@ -175,6 +175,13 @@ export interface Translations {
     fallbackNotice: string;
   };
 
+  // Share sheet
+  share: {
+    share: string;
+    copyLink: string;
+    copied: string;
+  };
+
   // Common actions
   common: {
     refresh: string;
@@ -381,6 +388,11 @@ const en: Translations = {
     retry: 'Try again',
     fallbackNotice: 'AI digest is unavailable (Worker not configured). Showing your top ranked articles instead.',
   },
+  share: {
+    share: 'Share',
+    copyLink: 'Copy link',
+    copied: 'Copied!',
+  },
   common: {
     refresh: 'Refresh',
     error: 'Something went wrong.',
@@ -579,6 +591,11 @@ const es: Translations = {
     errorTitle: 'No se pudo cargar el resumen',
     retry: 'Intentar de nuevo',
     fallbackNotice: 'El resumen AI no está disponible (Worker no configurado). Mostrando tus artículos mejor rankeados.',
+  },
+  share: {
+    share: 'Compartir',
+    copyLink: 'Copiar enlace',
+    copied: '¡Copiado!',
   },
   common: {
     refresh: 'Actualizar',
